@@ -7,10 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 // import { Camera, MousePointerClick, Save, Check, RefreshCw } from 'lucide-react'; // Added RefreshCw if needed, but keeping existing imports for now
-import { Camera, MousePointerClick, Save, Check, Loader2 } from 'lucide-react';
+import { Camera, MousePointerClick, Save, Check, Loader2, Eye, EyeOff } from 'lucide-react';
 
 function App() {
   const [apiKey, setApiKeyValue] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
   const [model, setModelValue] = useState('gemini-1.5-flash');
   const [saved, setSaved] = useState(false);
   const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
@@ -104,17 +105,30 @@ function App() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="api-key">Gemini API Key</Label>
-              <Input
-                id="api-key"
-                type="password"
-                placeholder="Paste your API Key"
-                value={apiKey}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    setApiKeyValue(e.target.value);
-                    setSaved(false);
-                }}
-                className="font-mono text-sm"
-              />
+              <div className="relative">
+                <Input
+                  id="api-key"
+                  type={showApiKey ? "text" : "password"}
+                  placeholder="Paste your API Key"
+                  value={apiKey}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      setApiKeyValue(e.target.value);
+                      setSaved(false);
+                  }}
+                  className="font-mono text-sm pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:text-foreground"
+                >
+                  {showApiKey ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">

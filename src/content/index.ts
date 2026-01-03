@@ -238,6 +238,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             console.log(`[Content] Total capture time: ${Math.round(conversionEndTime - startTime)}ms`);
             console.log('[Content] Data URL created, length:', imageUri.length);
             
+            // Show preview before sending
+            const panel = document.getElementById('navilens-content');
+            if (panel) {
+                panel.innerHTML = `
+                  <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
+                    <div style="border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
+                    <p style="margin-top: 12px; color: #64748b; text-align: center;">Analyzing captured content...</p>
+                    <div style="margin-top: 16px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; max-height: 200px;">
+                      <img src="${imageUri}" style="width: 100%; height: auto; display: block;" />
+                    </div>
+                  </div>
+                `;
+            }
+
             await processCapture(imageUri);
         } catch (error) {
             console.error('[Content] Full page capture failed:', error);
