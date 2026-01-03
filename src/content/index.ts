@@ -307,21 +307,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             console.log('[Content] Stitching complete.');
             const finalImageUri = tempCanvas.toDataURL('image/png');
             
-            // Preview
-            const panel = document.getElementById('navilens-content');
-            if (panel) {
-                panel.innerHTML = `
-                  <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
-                    <div style="border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
-                    <p style="margin-top: 12px; color: #64748b; text-align: center;">Analyzing full page...</p>
-                    <div style="margin-top: 16px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; max-height: 200px;">
-                      <img src="${finalImageUri}" style="width: 100%; height: auto; display: block;" />
-                    </div>
-                  </div>
-                `;
-            }
+            // Save to storage
+            await chrome.storage.local.set({ 
+                'navilens_current_capture': {
+                    imageUri: finalImageUri,
+                    timestamp: Date.now()
+                }
+            });
 
-            await processCapture(finalImageUri);
+            showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
+
+            // Open Result Tab
+            await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+            
+            // Close panel after short delay
+            setTimeout(() => {
+                const panel = document.getElementById('navilens-panel');
+                if (panel) panel.style.display = 'none';
+            }, 1000);
 
         } catch (error) {
             console.error('[Content] Scroll capture failed:', error);

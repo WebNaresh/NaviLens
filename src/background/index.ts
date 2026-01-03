@@ -22,6 +22,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     });
     return true; // Async response
   }
+
+  if (message.type === 'OPEN_RESULT_TAB') {
+    chrome.tabs.create({ url: 'capture.html' });
+    sendResponse({ success: true });
+    return true;
+  }
 });
 
 const handleAnalysis = async (imageBase64: string, sendResponse: (response: any) => void) => {
