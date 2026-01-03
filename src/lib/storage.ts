@@ -17,6 +17,7 @@ if (typeof chrome === 'undefined' || !chrome.storage) {
 
 export const STORAGE_KEYS = {
   GEMINI_API_KEY: 'gemini_api_key',
+  GEMINI_MODEL: 'gemini_model',
 };
 
 export const getApiKey = async (): Promise<string | null> => {
@@ -27,4 +28,13 @@ export const getApiKey = async (): Promise<string | null> => {
 
 export const setApiKey = async (key: string): Promise<void> => {
   await chrome.storage.local.set({ [STORAGE_KEYS.GEMINI_API_KEY]: key });
+};
+
+export const getModel = async (): Promise<string> => {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.GEMINI_MODEL);
+  return result[STORAGE_KEYS.GEMINI_MODEL] || 'gemini-1.5-flash';
+};
+
+export const setModel = async (model: string): Promise<void> => {
+  await chrome.storage.local.set({ [STORAGE_KEYS.GEMINI_MODEL]: model });
 };
