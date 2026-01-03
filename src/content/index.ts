@@ -3,7 +3,7 @@ interface SelectionState {
   hoveredElement: HTMLElement | null;
 }
 
-let state: SelectionState = {
+const state: SelectionState = {
   active: false,
   hoveredElement: null,
 };
