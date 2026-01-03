@@ -477,6 +477,11 @@ if (window.location.hostname.includes('gemini.google.com')) {
                         // Create DataTransfer
                         const dataTransfer = new DataTransfer();
                         dataTransfer.items.add(file);
+                        
+                        // Add text if available
+                        if (pasteData.text) {
+                            dataTransfer.setData('text/plain', pasteData.text);
+                        }
 
                         // Dispatch Paste Event
                         const pasteEvent = new ClipboardEvent('paste', {

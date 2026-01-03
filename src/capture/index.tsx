@@ -97,6 +97,7 @@ const CaptureResult = () => {
                 chrome.storage.local.set({
                     'pending_gemini_paste': {
                         imageUri: imageUri,
+                        text: "How can we enhance this component?",
                         timestamp: Date.now()
                     }
                 }, () => {
