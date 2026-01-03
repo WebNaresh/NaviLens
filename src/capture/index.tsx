@@ -34,7 +34,7 @@ const CaptureResult = () => {
 
       try {
           // 1. ALWAYS Copy Image First (Await it!)
-          await performCopy();
+          await performCopy(platform);
 
           setToast(`Image Copied! Opening ${platform}...`);
           
@@ -58,18 +58,26 @@ const CaptureResult = () => {
       }
   };
 
-  const performCopy = async () => {
+  const performCopy = async (platform: string) => {
       if (!imageUri) throw new Error("No image data");
       
       const res = await fetch(imageUri);
       const blob = await res.blob();
       
-      // Wrap in a named File object - this often helps with "Unable to upload" errors
-      // as some apps expect a filename in the metadata.
-      const file = new File([blob], "screenshot.png", { type: 'image/png' });
-      const data = [new ClipboardItem({ 'image/png': file })];
+      let item: ClipboardItem;
+
+      if (platform === 'ChatGPT') {
+          // ChatGPT specifically requires a named File object to treat it as an upload
+          const file = new File([blob], "screenshot.png", { type: 'image/png' });
+          item = new ClipboardItem({ 'image/png': file });
+      } else {
+          // Gemini and others prefer a standard Blob
+          // Re-slicing ensures it's a clean Blob with correct type
+          const cleanBlob = new Blob([blob], { type: 'image/png' });
+          item = new ClipboardItem({ 'image/png': cleanBlob });
+      }
       
-      await navigator.clipboard.write(data);
+      await navigator.clipboard.write([item]);
   };
 
   useEffect(() => {
