@@ -36,9 +36,19 @@ const CaptureResult = () => {
           // 1. ALWAYS Copy Image First (Await it!)
           await performCopy(platform);
 
+          // 2. Set "Pending Paste" flag for the content script to pick up
+          if (platform === 'Gemini' || platform === 'ChatGPT') {
+              await chrome.storage.local.set({ 
+                  'navilens_pending_paste': {
+                      platform: platform,
+                      timestamp: Date.now()
+                  }
+              });
+          }
+
           setToast(`Image Copied! Opening ${platform}...`);
           
-          // 2. THEN Launch App/URL
+          // 3. THEN Launch App/URL
           if (messageType === 'OPEN_VSCODE') {
                window.location.href = 'vscode://';
           } else if (messageType === 'OPEN_ANTIGRAVITY_TAB') {
