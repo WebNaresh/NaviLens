@@ -64,9 +64,10 @@ const CaptureResult = () => {
       const res = await fetch(imageUri);
       const blob = await res.blob();
       
-      // Ensure we are sending a clean PNG blob
-      const pngBlob = new Blob([blob], { type: 'image/png' });
-      const data = [new ClipboardItem({ 'image/png': pngBlob })];
+      // Wrap in a named File object - this often helps with "Unable to upload" errors
+      // as some apps expect a filename in the metadata.
+      const file = new File([blob], "screenshot.png", { type: 'image/png' });
+      const data = [new ClipboardItem({ 'image/png': file })];
       
       await navigator.clipboard.write(data);
   };
