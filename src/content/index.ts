@@ -68,7 +68,7 @@ const toggleSelection = (active: boolean) => {
 };
 
 // Listen for messages from popup
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'TOGGLE_SELECTION') {
     toggleSelection(true); // Enable selection mode
     sendResponse({ status: 'active' });
