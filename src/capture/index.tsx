@@ -4,6 +4,11 @@ import '../index.css';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getApiKey, getModel } from '../lib/storage';
 
+interface CaptureData {
+  imageUri: string;
+  timestamp: number;
+}
+
 const CaptureResult = () => {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<string | null>(null);
@@ -13,7 +18,7 @@ const CaptureResult = () => {
   useEffect(() => {
     // Load captured data
     chrome.storage.local.get('navilens_current_capture', async (result) => {
-      const data = result['navilens_current_capture'];
+      const data = result['navilens_current_capture'] as CaptureData | undefined;
       if (data && data.imageUri) {
         setImageUri(data.imageUri);
         analyzeImage(data.imageUri);

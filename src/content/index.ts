@@ -115,13 +115,33 @@ const showError = (error: string, imageUri?: string) => {
     
     if (imageUri) {
         html += `
-            <div style="margin-top: 16px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; max-height: 200px;">
-                <p style="background: #f1f5f9; padding: 4px 8px; font-size: 11px; color: #64748b; text-align: center; border-bottom: 1px solid #e2e8f0;">Captured Screenshot</p>
+            <div id="navilens-error-preview" style="margin-top: 16px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; max-height: 200px; cursor: pointer; transition: transform 0.1s;">
+                <p style="background: #f1f5f9; padding: 4px 8px; font-size: 11px; color: #64748b; text-align: center; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                    <span>Captured Screenshot</span>
+                    <span style="color: #4f46e5; font-weight: 500;">Click to open ↗</span>
+                </p>
                 <img src="${imageUri}" style="width: 100%; height: auto; display: block;" />
             </div>
         `;
     }
     content.innerHTML = html;
+
+    // Add click listener
+    const preview = document.getElementById('navilens-error-preview');
+    if (preview) {
+        preview.addEventListener('click', async () => {
+             // Save to storage first just in case (though it should be there)
+             if (imageUri) {
+                 await chrome.storage.local.set({ 
+                    'navilens_current_capture': {
+                        imageUri: imageUri,
+                        timestamp: Date.now()
+                    }
+                });
+             }
+             await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+        });
+    }
   }
   panel.style.display = 'block';
 };
