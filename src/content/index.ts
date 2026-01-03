@@ -389,6 +389,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         setTimeout(() => performScrollCapture('clipboard'), 100);
         sendResponse({ status: 'capturing' });
     }
+  }
 });
 
 console.log('NaviLens Content Script V1 Loaded');
