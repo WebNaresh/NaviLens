@@ -59,25 +59,41 @@ const CaptureResult = () => {
   };
 
   const performCopy = async (platform: string) => {
-      if (!imageUri) throw new Error("No image data");
-      
-      // Use fetch to get buffer (Reliable for data: URIs in extensions)
-      const res = await fetch(imageUri);
-      const blob = await res.blob();
-      
-      let item: ClipboardItem;
-
-      // Web Apps (ChatGPT, Gemini) often prefer a named File (simulates upload)
-      if (platform === 'ChatGPT' || platform === 'Gemini') {
-          const file = new File([blob], "screenshot.png", { type: 'image/png' });
-          item = new ClipboardItem({ 'image/png': file });
-      } else {
-          // Native Apps (VS Code, etc) often prefer standard Blob
-          const cleanBlob = new Blob([blob], { type: 'image/png' });
-          item = new ClipboardItem({ 'image/png': cleanBlob });
+      console.log(`[NaviLens] Starting Copy for platform: ${platform}`);
+      if (!imageUri) {
+          console.error('[NaviLens] No imageUri present');
+          throw new Error("No image data");
       }
       
-      await navigator.clipboard.write([item]);
+      try {
+          // Use fetch to get buffer
+          console.log('[NaviLens] Fetching image blob...');
+          const res = await fetch(imageUri);
+          const blob = await res.blob();
+          console.log(`[NaviLens] Blob created. Size: ${blob.size}, Type: ${blob.type}`);
+          
+          let item: ClipboardItem;
+
+          // Web Apps (ChatGPT, Gemini) often prefer a named File (simulates upload)
+          if (platform === 'ChatGPT' || platform === 'Gemini') {
+              console.log('[NaviLens] Wrapping as named File (screenshot.png)');
+              const file = new File([blob], "screenshot.png", { type: 'image/png' });
+              item = new ClipboardItem({ 'image/png': file });
+          } else {
+              // Native Apps (VS Code, etc) often prefer standard Blob
+              console.log('[NaviLens] Using standard Blob');
+              const cleanBlob = new Blob([blob], { type: 'image/png' });
+              item = new ClipboardItem({ 'image/png': cleanBlob });
+          }
+          
+          console.log('[NaviLens] Writing to navigator.clipboard...');
+          await navigator.clipboard.write([item]);
+          console.log('[NaviLens] Clipboard Write Success!');
+      
+      } catch (err) {
+          console.error('[NaviLens] performCopy Error:', err);
+          throw err;
+      }
   };
 
   useEffect(() => {
