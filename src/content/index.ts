@@ -216,7 +216,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     setTimeout(async () => {
         try {
+            const startTime = performance.now();
             console.log('[Content] Executing html2canvas...');
+            
             const canvas = await html2canvas(document.body, {
                 useCORS: true,
                 logging: true, // Enable html2canvas logs
@@ -226,9 +228,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     return element.id === 'navilens-panel' || element === overlay; 
                 }
             });
+            const captureEndTime = performance.now();
+            console.log(`[Content] html2canvas finished in ${Math.round(captureEndTime - startTime)}ms`);
+
             console.log('[Content] Canvas created, converting to data URL...');
             const imageUri = canvas.toDataURL('image/png');
+            const conversionEndTime = performance.now();
+            console.log(`[Content] Data URL conversion finished in ${Math.round(conversionEndTime - captureEndTime)}ms`);
+            console.log(`[Content] Total capture time: ${Math.round(conversionEndTime - startTime)}ms`);
             console.log('[Content] Data URL created, length:', imageUri.length);
+            
             await processCapture(imageUri);
         } catch (error) {
             console.error('[Content] Full page capture failed:', error);
