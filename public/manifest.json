@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "NaviLens - AI Screen Assistant",
+  "version": "1.0.0",
+  "description": "Capture screenshots and query Gemini AI for design and content suggestions.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*/*"
+  ],
+  "action": {
+    "default_popup": "index.html"
+  },
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/index.ts"]
+    }
+  ]
+}
