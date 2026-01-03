@@ -45,7 +45,7 @@ function App() {
                 type="password"
                 placeholder="Paste your API Key"
                 value={apiKey}
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                     setApiKeyValue(e.target.value);
                     setSaved(false);
                 }}
