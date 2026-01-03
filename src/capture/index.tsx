@@ -4,7 +4,12 @@ import '../index.css';
 
 
 
-// Removed unused interface
+
+interface CaptureData {
+  imageUri: string;
+  timestamp: number;
+}
+
 
 
 const ShareButton = ({ label, icon, onClick }: { label: string, icon: React.ReactNode, onClick: () => void }) => (
@@ -258,6 +263,16 @@ const CaptureResult = () => {
            setError('Failed to copy');
        }
   };
+
+  useEffect(() => {
+    // Load captured data
+    chrome.storage.local.get('navilens_current_capture', async (result) => {
+      const data = result['navilens_current_capture'] as CaptureData | undefined;
+      if (data && data.imageUri) {
+        setImageUri(data.imageUri);
+      }
+    });
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center py-12">
