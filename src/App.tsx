@@ -29,7 +29,22 @@ function App() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
-// ... (keep handleFullPageCapture and handleComponentSelect) ...
+
+  const handleFullPageCapture = async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab.id) {
+      window.close();
+      await chrome.tabs.sendMessage(tab.id, { type: 'CAPTURE_FULL_PAGE' });
+    }
+  };
+
+  const handleComponentSelect = async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab.id) {
+      window.close();
+      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SELECTION' });
+    }
+  };
 
   const MODELS = [
     { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (Exp)' },
@@ -37,6 +52,7 @@ function App() {
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
     { id: 'gemini-1.5-pro-002', name: 'Gemini 1.5 Pro (002)' },
     { id: 'gemini-1.5-flash-002', name: 'Gemini 1.5 Flash (002)' },
+    { id: 'gemini-3-pro', name: 'Gemini 3 Pro' }, 
   ];
 
   return (
