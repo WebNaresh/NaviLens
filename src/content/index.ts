@@ -243,8 +243,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 // Scroll to position
                 window.scrollTo(0, currentScroll);
                 
-                // Wait for scroll/render (dynamic wait could be better, but fixed is safer)
-                await new Promise(r => setTimeout(r, 150)); 
+                // Wait for scroll/render AND respect Chrome's capture quota
+                // MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND is strict (~2 calls/sec).
+                // 800ms delay + capture time should be safe.
+                await new Promise(r => setTimeout(r, 800)); 
                 
                 // Capture via background script (Native method)
                 console.log(`[Content] Capturing at scroll Y: ${currentScroll}`);
