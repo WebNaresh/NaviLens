@@ -101,12 +101,12 @@ const CaptureResult = () => {
                     navigator.clipboard.write([item]).then(() => {
                         // Show feedback
                         const originalText = document.getElementById('btn-text')?.innerText;
-                        if(originalText) document.getElementById('btn-text')!.innerText = 'Copied!';
+                    if(originalText) document.getElementById('btn-text')!.innerText = 'Copied! Press Ctrl+V in Gemini';
                         setTimeout(() => {
                              if(originalText) document.getElementById('btn-text')!.innerText = originalText;
                              // Open Gemini
                              chrome.runtime.sendMessage({ type: 'OPEN_GEMINI_TAB' });
-                        }, 1000);
+                        }, 2000);
                     });
                 })
                 .catch(err => console.error('Copy failed', err));
