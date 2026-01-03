@@ -275,14 +275,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 window.scrollTo(0, currentScroll);
                 
                 // Wait for scroll/render AND respect Chrome's capture quota
-                // MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND is strict (~2 calls/sec).
-                // 800ms delay + capture time should be safe.
                 await new Promise(r => setTimeout(r, 800)); 
                 
+                // Hide panel before capture to avoid artifacts
+                const panel = document.getElementById('navilens-panel');
+                const overlay = document.querySelector('div[style*="rgba(79, 70, 229, 0.1)"]') as HTMLElement; // selection overlay
+                
+                if (panel) panel.style.opacity = '0'; 
+                if (overlay) overlay.style.opacity = '0';
+
+                // Small layout/paint wait
+                await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+
                 // Capture via background script (Native method)
                 console.log(`[Content] Capturing at scroll Y: ${currentScroll}`);
                 const response = await chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
                 
+                // Restore visibility
+                if (panel) panel.style.opacity = '1';
+                // Overlay might not need to be restored if we are in full page mode, but opacity 0 is safe
+                if (overlay) overlay.style.opacity = '0'; // Keep overlay hidden during full capture
+
                 if (!response.success) throw new Error(response.error);
                 
                 captures.push({ 
