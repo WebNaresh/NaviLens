@@ -21,34 +21,58 @@ const ShareButton = ({ label, icon, onClick }: { label: string, icon: React.Reac
 
 const CaptureResult = () => {
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const handleShare = (platform: string, messageType?: string) => {
-      if (!imageUri) return;
+      if (!imageUri) {
+          setError("No image to share");
+          return;
+      }
 
-      // 1. Copy Image to Clipboard
-      fetch(imageUri)
+      // Handle custom protocols directly in the UI thread to trigger browser prompts
+      if (messageType === 'OPEN_VSCODE') {
+           window.location.href = 'vscode://';
+           setToast('Opening VS Code...');
+           copyImageToClipboard(platform); // Still copy image
+           return;
+      }
+      if (messageType === 'OPEN_ANTIGRAVITY_TAB') {
+           window.location.href = 'antigravity://';
+           setToast('Opening Antigravity...');
+           copyImageToClipboard(platform);
+           return;
+      }
+
+      // For Web Apps (Gemini/ChatGPT), we copy then open tab via background
+      copyImageToClipboard(platform, messageType);
+  };
+
+  const copyImageToClipboard = (platform: string, messageType?: string) => {
+      fetch(imageUri!)
         .then(res => res.blob())
         .then(blob => {
-            const data = [new ClipboardItem({ [blob.type]: blob })];
+            // Ensure we are sending a clean PNG blob
+            const pngBlob = new Blob([blob], { type: 'image/png' });
+            const data = [new ClipboardItem({ 'image/png': pngBlob })];
             return navigator.clipboard.write(data);
         })
         .then(() => {
-            // 2. Show Toast
             let msg = `Image Copied! Paste into ${platform}`;
             if (platform === 'Gemini' || platform === 'ChatGPT') msg += ' (Ctrl+V)';
             setToast(msg);
-            setTimeout(() => setToast(null), 3000);
+            setTimeout(() => setToast(null), 4000);
 
-            // 3. Open URL if needed
-            if (messageType) {
+            // Open Web URL if needed (only for web apps now)
+            if (messageType && !messageType.startsWith('OPEN_VSCODE') && !messageType.startsWith('OPEN_ANTIGRAVITY')) {
                  setTimeout(() => {
                      chrome.runtime.sendMessage({ type: messageType });
-                 }, 500); // Small delay to let user see the toast
+                 }, 500); 
             }
         })
         .catch(err => {
             console.error('Share failed', err);
+            setToast(`Error: ${err.message}`); // Show detailed error to user
         });
   };
 
