@@ -51,10 +51,16 @@ function App() {
   };
 
   const handleFullPageCapture = async () => {
+    console.log('[Popup] Full Page capture initiated');
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    console.log('[Popup] Active tab found:', tab);
     if (tab.id) {
       window.close();
+      console.log('[Popup] Sending CAPTURE_FULL_PAGE to tab', tab.id);
       await chrome.tabs.sendMessage(tab.id, { type: 'CAPTURE_FULL_PAGE' });
+      console.log('[Popup] Message sent');
+    } else {
+        console.error('[Popup] No active tab found');
     }
   };
 

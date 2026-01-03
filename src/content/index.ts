@@ -204,21 +204,26 @@ const toggleSelection = (active: boolean) => {
 // --- Message Listener ---
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  console.log('[Content] Message received:', message);
   if (message.type === 'TOGGLE_SELECTION') {
     toggleSelection(true);
     sendResponse({ status: 'selection_active' });
   } else if (message.type === 'CAPTURE_FULL_PAGE') {
+    console.log('[Content] Starting full page capture...');
     setTimeout(async () => {
         try {
+            console.log('[Content] Executing html2canvas...');
             const canvas = await html2canvas(document.body, {
                 useCORS: true,
-                logging: false,
+                logging: true, // Enable html2canvas logs
                 allowTaint: true
             });
+            console.log('[Content] Canvas created, converting to data URL...');
             const imageUri = canvas.toDataURL('image/png');
+            console.log('[Content] Data URL created, length:', imageUri.length);
             await processCapture(imageUri);
         } catch (error) {
-            console.error('Full page capture failed:', error);
+            console.error('[Content] Full page capture failed:', error);
             showError('Full page capture failed.');
         }
     }, 500);
