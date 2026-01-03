@@ -24,21 +24,9 @@ function App() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  return (
-    <div className="w-[350px] min-h-[450px] bg-background font-sans p-4">
-      <Card className="border-none shadow-none">
-        <CardHeader className="px-0 pt-0 pb-4">
-          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-            NaviLens
-          </CardTitle>
-          <CardDescription>AI-Powered Screen Assistant</CardDescription>
-        </CardHeader>
-        
-        <Separator className="mb-6" />
   const handleFullPageCapture = async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab.id) {
-      // Close popup to allow capture of underlying page
       window.close();
       await chrome.tabs.sendMessage(tab.id, { type: 'CAPTURE_FULL_PAGE' });
     }
