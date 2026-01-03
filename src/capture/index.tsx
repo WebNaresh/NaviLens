@@ -502,15 +502,31 @@ const CaptureResult = () => {
                   />
                   <canvas
                       ref={canvasRef}
-                      onMouseDown={startDrawing}
-                      onMouseMove={draw}
-                      onMouseUp={stopDrawing}
-                      onMouseLeave={stopDrawing}
-                      onTouchStart={startDrawing}
-                      onTouchMove={draw}
-                      onTouchEnd={stopDrawing}
+                      onMouseDown={isCropActive ? startCrop : startDrawing}
+                      onMouseMove={isCropActive ? doCrop : draw}
+                      onMouseUp={isCropActive ? endCrop : stopDrawing}
+                      onMouseLeave={isCropActive ? endCrop : stopDrawing}
+                      onTouchStart={isCropActive ? startCrop : startDrawing}
+                      onTouchMove={isCropActive ? doCrop : draw}
+                      onTouchEnd={isCropActive ? endCrop : stopDrawing}
                       className={`absolute top-0 left-0 w-full h-full cursor-${isPenActive ? 'crosshair' : 'default'}`}
                   />
+                  {/* Crop Overlay */}
+                  {isCropActive && cropStart && cropEnd && (
+                      <div 
+                          className="absolute border-2 border-green-500 border-dashed bg-green-500 bg-opacity-10 pointer-events-none"
+                          style={{
+                              left: `${Math.min(cropStart.x, cropEnd.x)}px`,
+                              top: `${Math.min(cropStart.y, cropEnd.y)}px`,
+                              width: `${Math.abs(cropEnd.x - cropStart.x)}px`,
+                              height: `${Math.abs(cropEnd.y - cropStart.y)}px`
+                          }}
+                      >
+                          <div className="absolute -top-6 left-0 bg-green-600 text-white text-xs px-2 py-1 rounded">
+                              {Math.round(Math.abs(cropEnd.x - cropStart.x))} × {Math.round(Math.abs(cropEnd.y - cropStart.y))}
+                          </div>
+                      </div>
+                  )}
                   </>
                 ) : (
                     <div className="text-gray-400 p-12">No image</div>
