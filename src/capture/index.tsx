@@ -197,7 +197,15 @@ const CaptureResult = () => {
       }
   };
 
-  // ... (useEffect remains similar)
+  useEffect(() => {
+    // Load captured data
+    chrome.storage.local.get('navilens_current_capture', async (result) => {
+      const data = result['navilens_current_capture'] as CaptureData | undefined;
+      if (data && data.imageUri) {
+        setImageUri(data.imageUri);
+      }
+    });
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center py-12">
