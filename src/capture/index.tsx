@@ -24,56 +24,51 @@ const CaptureResult = () => {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const handleShare = (platform: string, messageType?: string) => {
+  const handleShare = async (platform: string, messageType?: string) => {
       if (!imageUri) {
           setError("No image to share");
           return;
       }
 
-      // Handle custom protocols directly in the UI thread to trigger browser prompts
-      if (messageType === 'OPEN_VSCODE') {
-           window.location.href = 'vscode://';
-           setToast('Opening VS Code...');
-           copyImageToClipboard(platform); // Still copy image
-           return;
-      }
-      if (messageType === 'OPEN_ANTIGRAVITY_TAB') {
-           window.location.href = 'antigravity://';
-           setToast('Opening Antigravity...');
-           copyImageToClipboard(platform);
-           return;
-      }
+      setToast(`Copying for ${platform}...`);
 
-      // For Web Apps (Gemini/ChatGPT), we copy then open tab via background
-      copyImageToClipboard(platform, messageType);
+      try {
+          // 1. ALWAYS Copy Image First (Await it!)
+          await performCopy();
+
+          setToast(`Image Copied! Opening ${platform}...`);
+          
+          // 2. THEN Launch App/URL
+          if (messageType === 'OPEN_VSCODE') {
+               window.location.href = 'vscode://';
+          } else if (messageType === 'OPEN_ANTIGRAVITY_TAB') {
+               window.location.href = 'antigravity://';
+          } else if (messageType) {
+               // For Web Apps (Gemini/ChatGPT)
+               chrome.runtime.sendMessage({ type: messageType });
+          }
+          
+          // Clear toast after a delay
+          setTimeout(() => setToast(null), 4000);
+
+      } catch (err: any) {
+          console.error('Share failed', err);
+          setError(`Copy failed: ${err.message || err}`);
+          setToast(null);
+      }
   };
 
-  const copyImageToClipboard = (platform: string, messageType?: string) => {
-      fetch(imageUri!)
-        .then(res => res.blob())
-        .then(blob => {
-            // Ensure we are sending a clean PNG blob
-            const pngBlob = new Blob([blob], { type: 'image/png' });
-            const data = [new ClipboardItem({ 'image/png': pngBlob })];
-            return navigator.clipboard.write(data);
-        })
-        .then(() => {
-            let msg = `Image Copied! Paste into ${platform}`;
-            if (platform === 'Gemini' || platform === 'ChatGPT') msg += ' (Ctrl+V)';
-            setToast(msg);
-            setTimeout(() => setToast(null), 4000);
-
-            // Open Web URL if needed (only for web apps now)
-            if (messageType && !messageType.startsWith('OPEN_VSCODE') && !messageType.startsWith('OPEN_ANTIGRAVITY')) {
-                 setTimeout(() => {
-                     chrome.runtime.sendMessage({ type: messageType });
-                 }, 500); 
-            }
-        })
-        .catch(err => {
-            console.error('Share failed', err);
-            setToast(`Error: ${err.message}`); // Show detailed error to user
-        });
+  const performCopy = async () => {
+      if (!imageUri) throw new Error("No image data");
+      
+      const res = await fetch(imageUri);
+      const blob = await res.blob();
+      
+      // Ensure we are sending a clean PNG blob
+      const pngBlob = new Blob([blob], { type: 'image/png' });
+      const data = [new ClipboardItem({ 'image/png': pngBlob })];
+      
+      await navigator.clipboard.write(data);
   };
 
   useEffect(() => {
