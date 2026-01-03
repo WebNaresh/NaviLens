@@ -85,7 +85,38 @@ const CaptureResult = () => {
             </div>
             <h1 className="text-xl font-bold text-gray-900">NaviLens Analysis</h1>
           </div>
-          {loading && <span className="text-indigo-600 font-medium text-sm animate-pulse">Analyzing...</span>}
+          
+          <div className="flex items-center gap-3">
+            {loading && <span className="text-indigo-600 font-medium text-sm animate-pulse mr-2">Analyzing...</span>}
+            
+            <button 
+              onClick={() => {
+                if (!imageUri) return;
+                
+                // Convert base64 to blob
+                fetch(imageUri)
+                .then(res => res.blob())
+                .then(blob => {
+                    const item = new ClipboardItem({ "image/png": blob });
+                    navigator.clipboard.write([item]).then(() => {
+                        // Show feedback
+                        const originalText = document.getElementById('btn-text')?.innerText;
+                        if(originalText) document.getElementById('btn-text')!.innerText = 'Copied!';
+                        setTimeout(() => {
+                             if(originalText) document.getElementById('btn-text')!.innerText = originalText;
+                             // Open Gemini
+                             chrome.runtime.sendMessage({ type: 'OPEN_GEMINI_TAB' });
+                        }, 1000);
+                    });
+                })
+                .catch(err => console.error('Copy failed', err));
+              }}
+              className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all font-medium shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+              <span id="btn-text">Open with Gemini</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-gray-200">
