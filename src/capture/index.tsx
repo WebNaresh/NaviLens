@@ -61,33 +61,23 @@ const CaptureResult = () => {
   const performCopy = async (platform: string) => {
       if (!imageUri) throw new Error("No image data");
       
-      // Synchronous conversion avoids fetch/CSP issues
-      const blob = dataURItoBlob(imageUri);
+      // Use fetch to get buffer (Reliable for data: URIs in extensions)
+      const res = await fetch(imageUri);
+      const blob = await res.blob();
       
       let item: ClipboardItem;
 
-      if (platform === 'ChatGPT') {
-          // ChatGPT: Named File
+      // Web Apps (ChatGPT, Gemini) often prefer a named File (simulates upload)
+      if (platform === 'ChatGPT' || platform === 'Gemini') {
           const file = new File([blob], "screenshot.png", { type: 'image/png' });
           item = new ClipboardItem({ 'image/png': file });
       } else {
-          // Others: Standard Blob
-          item = new ClipboardItem({ 'image/png': blob });
+          // Native Apps (VS Code, etc) often prefer standard Blob
+          const cleanBlob = new Blob([blob], { type: 'image/png' });
+          item = new ClipboardItem({ 'image/png': cleanBlob });
       }
       
       await navigator.clipboard.write([item]);
-  };
-
-  const dataURItoBlob = (dataURI: string) => {
-      // Basic DataURI regex
-      const byteString = atob(dataURI.split(',')[1]);
-      const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
-      const ab = new ArrayBuffer(byteString.length);
-      const ia = new Uint8Array(ab);
-      for (let i = 0; i < byteString.length; i++) {
-          ia[i] = byteString.charCodeAt(i);
-      }
-      return new Blob([ab], {type: mimeString});
   };
 
   useEffect(() => {
