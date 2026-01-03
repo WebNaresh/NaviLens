@@ -209,56 +209,116 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     toggleSelection(true);
     sendResponse({ status: 'selection_active' });
   } else if (message.type === 'CAPTURE_FULL_PAGE') {
-    console.log('[Content] Starting full page capture...');
+    console.log('[Content] Starting Scroll & Stitch capture...');
     
-    // IMMEDIATE FEEDBACK: Show loading state with explicit message
-    showLoading("Capturing full page...<br><span style='font-size: 12px; color: #94a3b8;'>(This may take a few seconds)</span>");
+    showLoading("Initializing scroll capture...<br><span style='font-size: 12px; color: #94a3b8;'>Please do not interact with the page.</span>");
 
-    setTimeout(async () => {
+    const scrollAndCapture = async () => {
         try {
-            const startTime = performance.now();
-            console.log('[Content] Executing html2canvas...');
+            const tempCanvas = document.createElement('canvas');
+            const context = tempCanvas.getContext('2d');
             
-            const canvas = await html2canvas(document.body, {
-                useCORS: true,
-                logging: false, // Disable logs for performance
-                allowTaint: true,
-                scale: 1, // Force 1x scale to reduce image size and processing time (~4x faster on Retina)
-                ignoreElements: (element) => {
-                    // Ignore our own panel/overlay to avoid recursive capture issues or visual clutter
-                    return element.id === 'navilens-panel' || element === overlay; 
-                }
-            });
-            const captureEndTime = performance.now();
-            console.log(`[Content] html2canvas finished in ${Math.round(captureEndTime - startTime)}ms`);
+            // 1. Setup dimensions
+            const fullHeight = Math.max(
+                document.documentElement.scrollHeight, 
+                document.body.scrollHeight,
+                document.documentElement.offsetHeight
+            );
+            const fullWidth = document.documentElement.clientWidth;
+            const viewportHeight = window.innerHeight;
+            
+            // Handle high DPI
+            const devicePixelRatio = window.devicePixelRatio || 1;
+            
+            tempCanvas.width = fullWidth * devicePixelRatio;
+            tempCanvas.height = fullHeight * devicePixelRatio;
+            
+            console.log(`[Content] Capture dimensions: ${fullWidth}x${fullHeight} (@${devicePixelRatio}x)`);
 
-            console.log('[Content] Canvas created, converting to data URL...');
-            const imageUri = canvas.toDataURL('image/png');
-            const conversionEndTime = performance.now();
-            console.log(`[Content] Data URL conversion finished in ${Math.round(conversionEndTime - captureEndTime)}ms`);
-            console.log(`[Content] Total capture time: ${Math.round(conversionEndTime - startTime)}ms`);
-            console.log('[Content] Data URL created, length:', imageUri.length);
+            let currentScroll = 0;
+            const captures: { y: number, dataUrl: string, height: number }[] = [];
+
+            // 2. Scroll Loop
+            while (currentScroll < fullHeight) {
+                // Scroll to position
+                window.scrollTo(0, currentScroll);
+                
+                // Wait for scroll/render (dynamic wait could be better, but fixed is safer)
+                await new Promise(r => setTimeout(r, 150)); 
+                
+                // Capture via background script (Native method)
+                console.log(`[Content] Capturing at scroll Y: ${currentScroll}`);
+                const response = await chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
+                
+                if (!response.success) throw new Error(response.error);
+                
+                captures.push({ 
+                    y: currentScroll, 
+                    dataUrl: response.dataUrl,
+                    height: Math.min(viewportHeight, fullHeight - currentScroll)
+                });
+
+                // Update UI
+                const progress = Math.min(Math.round((currentScroll / fullHeight) * 100), 99);
+                showLoading(`Scanning page... ${progress}%<br><span style='font-size: 12px; color: #94a3b8;'>Scrolling and stitching</span>`);
+                
+                currentScroll += viewportHeight;
+            }
+
+            // Restore scroll
+            window.scrollTo(0, 0);
             
-            // Show preview before sending
+            showLoading("Stitching images...<br><span style='font-size: 12px; color: #94a3b8;'>Almost done</span>");
+
+            // 3. Stitching
+            if (context) {
+                for (const capture of captures) {
+                    const img = new Image();
+                    img.src = capture.dataUrl;
+                    await new Promise(resolve => img.onload = resolve);
+                    
+                    // Native capture is already scaled by dpr
+                    // We draw it onto our canvas at the correct Y offset
+                    // If it's the last chunk, we might need to crop it if it mimics "background-attachment: fixed" behavior?
+                    // Actually, simple stacking usually works for normal pages.
+                    // For the last chunk, if we simply over-scrolled, the browser handles it.
+                   
+                    context.drawImage(
+                        img, 
+                        0, 0, img.width, img.height, // Source
+                        0, capture.y * devicePixelRatio, tempCanvas.width, img.height // Dest (y scaled)
+                    );
+                }
+            }
+
+            console.log('[Content] Stitching complete.');
+            const finalImageUri = tempCanvas.toDataURL('image/png');
+            
+            // Preview
             const panel = document.getElementById('navilens-content');
             if (panel) {
                 panel.innerHTML = `
                   <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
                     <div style="border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
-                    <p style="margin-top: 12px; color: #64748b; text-align: center;">Analyzing captured content...</p>
+                    <p style="margin-top: 12px; color: #64748b; text-align: center;">Analyzing full page...</p>
                     <div style="margin-top: 16px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; max-height: 200px;">
-                      <img src="${imageUri}" style="width: 100%; height: auto; display: block;" />
+                      <img src="${finalImageUri}" style="width: 100%; height: auto; display: block;" />
                     </div>
                   </div>
                 `;
             }
 
-            await processCapture(imageUri);
+            await processCapture(finalImageUri);
+
         } catch (error) {
-            console.error('[Content] Full page capture failed:', error);
-            showError('Full page capture failed.');
+            console.error('[Content] Scroll capture failed:', error);
+            showError('Failed to capture full page.');
         }
-    }, 100);
+    };
+
+    // Small delay to ensure UI updates before starting work
+    setTimeout(scrollAndCapture, 100);
+    
     sendResponse({ status: 'capturing' });
   }
 });

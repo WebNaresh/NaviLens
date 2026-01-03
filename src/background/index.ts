@@ -10,6 +10,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     handleAnalysis(message.imageBase64, sendResponse);
     return true; 
   }
+
+  if (message.type === 'CAPTURE_VISIBLE_TAB') {
+    chrome.tabs.captureVisibleTab({ format: 'png' }, (dataUrl) => {
+      if (chrome.runtime.lastError) {
+        console.error('Capture failed:', chrome.runtime.lastError);
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+      } else {
+        sendResponse({ success: true, dataUrl });
+      }
+    });
+    return true; // Async response
+  }
 });
 
 const handleAnalysis = async (imageBase64: string, sendResponse: (response: any) => void) => {
