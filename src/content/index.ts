@@ -239,7 +239,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     
     showLoading("Initializing scroll capture...<br><span style='font-size: 12px; color: #94a3b8;'>Please do not interact with the page.</span>");
 
-    const scrollAndCapture = async () => {
+    const performScrollCapture = async (mode: 'internal' | 'clipboard') => {
         try {
             const tempCanvas = document.createElement('canvas');
             const context = tempCanvas.getContext('2d');
@@ -288,8 +288,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 
                 // Restore visibility
                 if (panel) panel.style.opacity = '1';
-                // Overlay might not need to be restored if we are in full page mode, but opacity 0 is safe
-                if (overlay) overlay.style.opacity = '0'; // Keep overlay hidden during full capture
+                if (overlay) overlay.style.opacity = '0'; 
 
                 if (!response.success) throw new Error(response.error);
                 
@@ -309,7 +308,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             // Restore scroll
             window.scrollTo(0, 0);
             
-            showLoading("Stitching images...<br><span style='font-size: 12px; color: #94a3b8;'>Almost done</span>");
+            showLoading("Stitching images...<br><span style='font-size: 12px; color: #94a3b8;'>Processing...</span>");
 
             // 3. Stitching
             if (context) {
@@ -318,12 +317,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     img.src = capture.dataUrl;
                     await new Promise(resolve => img.onload = resolve);
                     
-                    // Native capture is already scaled by dpr
-                    // We draw it onto our canvas at the correct Y offset
-                    // If it's the last chunk, we might need to crop it if it mimics "background-attachment: fixed" behavior?
-                    // Actually, simple stacking usually works for normal pages.
-                    // For the last chunk, if we simply over-scrolled, the browser handles it.
-                   
                     context.drawImage(
                         img, 
                         0, 0, img.width, img.height, // Source
@@ -335,18 +328,46 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             console.log('[Content] Stitching complete.');
             const finalImageUri = tempCanvas.toDataURL('image/png');
             
-            // Save to storage
-            await chrome.storage.local.set({ 
-                'navilens_current_capture': {
-                    imageUri: finalImageUri,
-                    timestamp: Date.now()
-                }
-            });
+            if (mode === 'internal') {
+                // Save to storage
+                await chrome.storage.local.set({ 
+                    'navilens_current_capture': {
+                        imageUri: finalImageUri,
+                        timestamp: Date.now()
+                    }
+                });
 
-            showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
+                showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
 
-            // Open Result Tab
-            await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+                // Open Result Tab
+                await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+                
+            } else if (mode === 'clipboard') {
+                // Clipboard mode
+                showLoading("Copying to clipboard...<br><span style='font-size: 12px; color: #94a3b8;'>Preparing for Gemini</span>");
+                
+                // Convert to blob for clipboard
+                tempCanvas.toBlob(async (blob) => {
+                    if (!blob) {
+                        showError("Failed to create image blob.");
+                        return;
+                    }
+                    
+                    try {
+                        const item = new ClipboardItem({ "image/png": blob });
+                        await navigator.clipboard.write([item]);
+                        
+                        showLoading("Copied! Opening Gemini...<br><span style='font-size: 12px; color: #94a3b8;'>Press Ctrl+V when it opens</span>");
+                        
+                        await new Promise(r => setTimeout(r, 1000));
+                        await chrome.runtime.sendMessage({ type: 'OPEN_GEMINI_TAB' });
+
+                    } catch (err) {
+                        console.error('Clipboard write failed:', err);
+                        showError("Failed to copy to clipboard. Permission denied?");
+                    }
+                });
+            }
             
             // Close panel after short delay
             setTimeout(() => {
@@ -360,11 +381,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
     };
 
-    // Small delay to ensure UI updates before starting work
-    setTimeout(scrollAndCapture, 100);
-    
-    sendResponse({ status: 'capturing' });
-  }
+    if (message.type === 'CAPTURE_FULL_PAGE') {
+        // Small delay to ensure UI updates
+        setTimeout(() => performScrollCapture('internal'), 100);
+        sendResponse({ status: 'capturing' });
+    } else if (message.type === 'CAPTURE_TO_GEMINI') {
+        setTimeout(() => performScrollCapture('clipboard'), 100);
+        sendResponse({ status: 'capturing' });
+    }
 });
 
 console.log('NaviLens Content Script V1 Loaded');

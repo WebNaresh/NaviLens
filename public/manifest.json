@@ -6,7 +6,10 @@
   "permissions": [
     "activeTab",
     "storage",
-    "scripting"
+    "activeTab",
+    "storage",
+    "scripting",
+    "clipboardWrite"
   ],
   "host_permissions": [
     "*://*/*"

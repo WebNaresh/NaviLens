@@ -174,17 +174,37 @@ function App() {
               onClick={handleFullPageCapture}
             >
               <Camera className="h-6 w-6" />
-              <span className="text-xs font-medium">Full Page</span>
+              <div className="flex flex-col items-center">
+                <span className="text-xs font-medium">Full Page</span>
+                <span className="text-[9px] text-muted-foreground">Internal</span>
+              </div>
             </Button>
             <Button 
               variant="outline" 
               className="h-24 flex flex-col gap-2 hover:border-indigo-500 hover:text-indigo-600 transition-all"
-              onClick={handleComponentSelect}
+              onClick={async () => {
+                  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                  if (tab.id) {
+                    window.close();
+                    await chrome.tabs.sendMessage(tab.id, { type: 'CAPTURE_TO_GEMINI' });
+                  }
+              }}
             >
-              <MousePointerClick className="h-6 w-6" />
-              <span className="text-xs font-medium">Select Component</span>
+              <span className="text-xl">✨</span>
+              <div className="flex flex-col items-center">
+                <span className="text-xs font-medium">Ask Gemini</span>
+                <span className="text-[9px] text-muted-foreground">Web Paste</span>
+              </div>
             </Button>
           </div>
+          <Button 
+              variant="outline" 
+              className="w-full h-12 flex gap-2 hover:border-indigo-500 hover:text-indigo-600 transition-all"
+              onClick={handleComponentSelect}
+          >
+              <MousePointerClick className="h-4 w-4" />
+              <span className="text-sm font-medium">Select Component</span>
+          </Button>
         </CardContent>
 
         <CardFooter className="px-0 pt-2 flex justify-center">
