@@ -52,7 +52,6 @@ function App() {
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
     { id: 'gemini-1.5-pro-002', name: 'Gemini 1.5 Pro (002)' },
     { id: 'gemini-1.5-flash-002', name: 'Gemini 1.5 Flash (002)' },
-    { id: 'gemini-3-pro', name: 'Gemini 3 Pro' }, 
   ];
 
   return (
