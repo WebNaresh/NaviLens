@@ -13,7 +13,10 @@ export const analyzeImageWithGemini = async (
 ): Promise<GeminiResponse> => {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: modelName });
+    // SDK expects just the model ID (e.g., "gemini-1.5-flash"), it handles the path.
+    // Ensure we strip "models/" if it was passed in.
+    const cleanModelName = modelName.replace(/^models\//, '');
+    const model = genAI.getGenerativeModel({ model: cleanModelName });
 
     // Remove header if present to get pure base64
     const base64Data = imageBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');

@@ -221,8 +221,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             
             const canvas = await html2canvas(document.body, {
                 useCORS: true,
-                logging: true, // Enable html2canvas logs
+                logging: false, // Disable logs for performance
                 allowTaint: true,
+                scale: 1, // Force 1x scale to reduce image size and processing time (~4x faster on Retina)
                 ignoreElements: (element) => {
                     // Ignore our own panel/overlay to avoid recursive capture issues or visual clutter
                     return element.id === 'navilens-panel' || element === overlay; 
