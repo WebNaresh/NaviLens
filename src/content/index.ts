@@ -227,6 +227,150 @@ const toggleSelection = (active: boolean) => {
   }
 };
 
+// --- Scroll Capture Helper ---
+
+const performScrollCapture = async (mode: 'internal' | 'clipboard') => {
+    try {
+        const tempCanvas = document.createElement('canvas');
+        const context = tempCanvas.getContext('2d');
+        
+        // 1. Setup dimensions
+        const fullHeight = Math.max(
+            document.documentElement.scrollHeight, 
+            document.body.scrollHeight,
+            document.documentElement.offsetHeight
+        );
+        const fullWidth = document.documentElement.clientWidth;
+        const viewportHeight = window.innerHeight;
+        
+        // Handle high DPI
+        const devicePixelRatio = window.devicePixelRatio || 1;
+        
+        tempCanvas.width = fullWidth * devicePixelRatio;
+        tempCanvas.height = fullHeight * devicePixelRatio;
+        
+        console.log(`[Content] Capture dimensions: ${fullWidth}x${fullHeight} (@${devicePixelRatio}x)`);
+
+        let currentScroll = 0;
+        const captures: { y: number, dataUrl: string, height: number }[] = [];
+
+        // 2. Scroll Loop
+        while (currentScroll < fullHeight) {
+            // Scroll to position
+            window.scrollTo(0, currentScroll);
+            
+            // Wait for scroll/render AND respect Chrome's capture quota
+            await new Promise(r => setTimeout(r, 800)); 
+            
+            // Hide panel before capture to avoid artifacts
+            const panel = document.getElementById('navilens-panel');
+            const overlay = document.querySelector('div[style*="rgba(79, 70, 229, 0.1)"]') as HTMLElement; // selection overlay
+            
+            if (panel) panel.style.opacity = '0'; 
+            if (overlay) overlay.style.opacity = '0';
+
+            // Small layout/paint wait
+            await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+
+            // Capture via background script (Native method)
+            console.log(`[Content] Capturing at scroll Y: ${currentScroll}`);
+            const response = await chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
+            
+            // Restore visibility
+            if (panel) panel.style.opacity = '1';
+            if (overlay) overlay.style.opacity = '0'; 
+
+            if (!response.success) throw new Error(response.error);
+            
+            captures.push({ 
+                y: currentScroll, 
+                dataUrl: response.dataUrl,
+                height: Math.min(viewportHeight, fullHeight - currentScroll)
+            });
+
+            // Update UI
+            const progress = Math.min(Math.round((currentScroll / fullHeight) * 100), 99);
+            showLoading(`Scanning page... ${progress}%<br><span style='font-size: 12px; color: #94a3b8;'>Scrolling and stitching</span>`);
+            
+            currentScroll += viewportHeight;
+        }
+
+        // Restore scroll
+        window.scrollTo(0, 0);
+        
+        showLoading("Stitching images...<br><span style='font-size: 12px; color: #94a3b8;'>Processing...</span>");
+
+        // 3. Stitching
+        if (context) {
+            for (const capture of captures) {
+                const img = new Image();
+                img.src = capture.dataUrl;
+                await new Promise(resolve => img.onload = resolve);
+                
+                context.drawImage(
+                    img, 
+                    0, 0, img.width, img.height, // Source
+                    0, capture.y * devicePixelRatio, tempCanvas.width, img.height // Dest (y scaled)
+                );
+            }
+        }
+
+        console.log('[Content] Stitching complete.');
+        const finalImageUri = tempCanvas.toDataURL('image/png');
+        
+        if (mode === 'internal') {
+            // Save to storage
+            await chrome.storage.local.set({ 
+                'navilens_current_capture': {
+                    imageUri: finalImageUri,
+                    timestamp: Date.now()
+                }
+            });
+
+            showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
+
+            // Open Result Tab
+            await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+            
+        } else if (mode === 'clipboard') {
+            // Clipboard mode
+            showLoading("Copying to clipboard...<br><span style='font-size: 12px; color: #94a3b8;'>Preparing for Gemini</span>");
+            
+            // Convert to blob for clipboard
+            tempCanvas.toBlob(async (blob) => {
+                if (!blob) {
+                    showError("Failed to create image blob.");
+                    return;
+                }
+                
+                try {
+                    const item = new ClipboardItem({ "image/png": blob });
+                    await navigator.clipboard.write([item]);
+                    
+                    showLoading("Copied! Opening Gemini...<br><span style='font-size: 12px; color: #94a3b8;'>Press Ctrl+V when it opens</span>");
+                    
+                    await new Promise(r => setTimeout(r, 1000));
+                    await chrome.runtime.sendMessage({ type: 'OPEN_GEMINI_TAB' });
+
+                } catch (err) {
+                    console.error('Clipboard write failed:', err);
+                    showError("Failed to copy to clipboard. Permission denied?");
+                }
+            });
+        }
+        
+        // Close panel after short delay
+        setTimeout(() => {
+            const panel = document.getElementById('navilens-panel');
+            if (panel) panel.style.display = 'none';
+        }, 1000);
+
+    } catch (error) {
+        console.error('[Content] Scroll capture failed:', error);
+        showError('Failed to capture full page.');
+    }
+};
+
 // --- Message Listener ---
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -235,160 +379,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     toggleSelection(true);
     sendResponse({ status: 'selection_active' });
   } else if (message.type === 'CAPTURE_FULL_PAGE') {
-    console.log('[Content] Starting Scroll & Stitch capture...');
-    
+    console.log('[Content] Starting Scroll & Stitch capture (Internal)...');
     showLoading("Initializing scroll capture...<br><span style='font-size: 12px; color: #94a3b8;'>Please do not interact with the page.</span>");
 
-    const performScrollCapture = async (mode: 'internal' | 'clipboard') => {
-        try {
-            const tempCanvas = document.createElement('canvas');
-            const context = tempCanvas.getContext('2d');
-            
-            // 1. Setup dimensions
-            const fullHeight = Math.max(
-                document.documentElement.scrollHeight, 
-                document.body.scrollHeight,
-                document.documentElement.offsetHeight
-            );
-            const fullWidth = document.documentElement.clientWidth;
-            const viewportHeight = window.innerHeight;
-            
-            // Handle high DPI
-            const devicePixelRatio = window.devicePixelRatio || 1;
-            
-            tempCanvas.width = fullWidth * devicePixelRatio;
-            tempCanvas.height = fullHeight * devicePixelRatio;
-            
-            console.log(`[Content] Capture dimensions: ${fullWidth}x${fullHeight} (@${devicePixelRatio}x)`);
+    setTimeout(() => performScrollCapture('internal'), 100);
+    sendResponse({ status: 'capturing' });
+  } else if (message.type === 'CAPTURE_TO_GEMINI') {
+    console.log('[Content] Starting Scroll & Stitch capture (Clipboard)...');
+    showLoading("Initializing scroll capture...<br><span style='font-size: 12px; color: #94a3b8;'>Please do not interact with the page.</span>");
 
-            let currentScroll = 0;
-            const captures: { y: number, dataUrl: string, height: number }[] = [];
-
-            // 2. Scroll Loop
-            while (currentScroll < fullHeight) {
-                // Scroll to position
-                window.scrollTo(0, currentScroll);
-                
-                // Wait for scroll/render AND respect Chrome's capture quota
-                await new Promise(r => setTimeout(r, 800)); 
-                
-                // Hide panel before capture to avoid artifacts
-                const panel = document.getElementById('navilens-panel');
-                const overlay = document.querySelector('div[style*="rgba(79, 70, 229, 0.1)"]') as HTMLElement; // selection overlay
-                
-                if (panel) panel.style.opacity = '0'; 
-                if (overlay) overlay.style.opacity = '0';
-
-                // Small layout/paint wait
-                await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
-
-                // Capture via background script (Native method)
-                console.log(`[Content] Capturing at scroll Y: ${currentScroll}`);
-                const response = await chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
-                
-                // Restore visibility
-                if (panel) panel.style.opacity = '1';
-                if (overlay) overlay.style.opacity = '0'; 
-
-                if (!response.success) throw new Error(response.error);
-                
-                captures.push({ 
-                    y: currentScroll, 
-                    dataUrl: response.dataUrl,
-                    height: Math.min(viewportHeight, fullHeight - currentScroll)
-                });
-
-                // Update UI
-                const progress = Math.min(Math.round((currentScroll / fullHeight) * 100), 99);
-                showLoading(`Scanning page... ${progress}%<br><span style='font-size: 12px; color: #94a3b8;'>Scrolling and stitching</span>`);
-                
-                currentScroll += viewportHeight;
-            }
-
-            // Restore scroll
-            window.scrollTo(0, 0);
-            
-            showLoading("Stitching images...<br><span style='font-size: 12px; color: #94a3b8;'>Processing...</span>");
-
-            // 3. Stitching
-            if (context) {
-                for (const capture of captures) {
-                    const img = new Image();
-                    img.src = capture.dataUrl;
-                    await new Promise(resolve => img.onload = resolve);
-                    
-                    context.drawImage(
-                        img, 
-                        0, 0, img.width, img.height, // Source
-                        0, capture.y * devicePixelRatio, tempCanvas.width, img.height // Dest (y scaled)
-                    );
-                }
-            }
-
-            console.log('[Content] Stitching complete.');
-            const finalImageUri = tempCanvas.toDataURL('image/png');
-            
-            if (mode === 'internal') {
-                // Save to storage
-                await chrome.storage.local.set({ 
-                    'navilens_current_capture': {
-                        imageUri: finalImageUri,
-                        timestamp: Date.now()
-                    }
-                });
-
-                showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
-
-                // Open Result Tab
-                await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
-                
-            } else if (mode === 'clipboard') {
-                // Clipboard mode
-                showLoading("Copying to clipboard...<br><span style='font-size: 12px; color: #94a3b8;'>Preparing for Gemini</span>");
-                
-                // Convert to blob for clipboard
-                tempCanvas.toBlob(async (blob) => {
-                    if (!blob) {
-                        showError("Failed to create image blob.");
-                        return;
-                    }
-                    
-                    try {
-                        const item = new ClipboardItem({ "image/png": blob });
-                        await navigator.clipboard.write([item]);
-                        
-                        showLoading("Copied! Opening Gemini...<br><span style='font-size: 12px; color: #94a3b8;'>Press Ctrl+V when it opens</span>");
-                        
-                        await new Promise(r => setTimeout(r, 1000));
-                        await chrome.runtime.sendMessage({ type: 'OPEN_GEMINI_TAB' });
-
-                    } catch (err) {
-                        console.error('Clipboard write failed:', err);
-                        showError("Failed to copy to clipboard. Permission denied?");
-                    }
-                });
-            }
-            
-            // Close panel after short delay
-            setTimeout(() => {
-                const panel = document.getElementById('navilens-panel');
-                if (panel) panel.style.display = 'none';
-            }, 1000);
-
-        } catch (error) {
-            console.error('[Content] Scroll capture failed:', error);
-            showError('Failed to capture full page.');
-        }
-    };
-
-    if (message.type === 'CAPTURE_FULL_PAGE') {
-        // Small delay to ensure UI updates
-        setTimeout(() => performScrollCapture('internal'), 100);
-        sendResponse({ status: 'capturing' });
-    } else if (message.type === 'CAPTURE_TO_GEMINI') {
-        setTimeout(() => performScrollCapture('clipboard'), 100);
-        sendResponse({ status: 'capturing' });
-    }
+    setTimeout(() => performScrollCapture('clipboard'), 100);
+    sendResponse({ status: 'capturing' });
   }
 });
 
