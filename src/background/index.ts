@@ -40,6 +40,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     sendResponse({ success: true });
     return true;
   }
+
+  if (message.type === 'OPEN_ANTIGRAVITY_TAB') {
+    chrome.tabs.create({ url: 'https://www.google.com/search?q=antigravity' }); // Placeholder
+    sendResponse({ success: true });
+    return true;
+  }
 });
 
 const handleAnalysis = async (imageBase64: string, sendResponse: (response: any) => void) => {
