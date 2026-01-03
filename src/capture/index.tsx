@@ -74,14 +74,15 @@ const CaptureResult = () => {
           
           let item: ClipboardItem;
 
-          // Web Apps (ChatGPT, Gemini) often prefer a named File (simulates upload)
-          if (platform === 'ChatGPT' || platform === 'Gemini') {
-              console.log('[NaviLens] Wrapping as named File (screenshot.png)');
+          // Web Apps (ChatGPT) often prefer a named File (simulates upload)
+          // Gemini works better with a standard Blob (raw image)
+          if (platform === 'ChatGPT') {
+              console.log('[NaviLens] Wrapping as named File (screenshot.png) for ChatGPT');
               const file = new File([blob], "screenshot.png", { type: 'image/png' });
               item = new ClipboardItem({ 'image/png': file });
           } else {
-              // Native Apps (VS Code, etc) often prefer standard Blob
-              console.log('[NaviLens] Using standard Blob');
+              // Gemini, VS Code, etc prefer standard Blob
+              console.log('[NaviLens] Using standard Blob (Gemini/Native)');
               const cleanBlob = new Blob([blob], { type: 'image/png' });
               item = new ClipboardItem({ 'image/png': cleanBlob });
           }
