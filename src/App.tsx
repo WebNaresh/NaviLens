@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { getApiKey, setApiKey } from './lib/storage';
-import { Input } from './components/Input';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Camera, MousePointerClick, Save, Check } from 'lucide-react';
 
 function App() {
   const [apiKey, setApiKeyValue] = useState('');
@@ -20,51 +25,64 @@ function App() {
   };
 
   return (
-    <div className="w-[350px] min-h-[400px] p-4 bg-gray-50 flex flex-col font-sans">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-indigo-600 bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600">
-          NaviLens
-        </h1>
-        <p className="text-xs text-gray-500">AI Screen Assistant</p>
-      </header>
+    <div className="w-[350px] min-h-[450px] bg-background font-sans p-4">
+      <Card className="border-none shadow-none">
+        <CardHeader className="px-0 pt-0 pb-4">
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+            NaviLens
+          </CardTitle>
+          <CardDescription>AI-Powered Screen Assistant</CardDescription>
+        </CardHeader>
+        
+        <Separator className="mb-6" />
 
-      <main className="flex-1 flex flex-col gap-4">
-        <section className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-          <Input
-            label="Gemini API Key"
-            type="password"
-            placeholder="Enter your API Key"
-            value={apiKey}
-            onChange={(e) => {
-                setApiKeyValue(e.target.value);
-                setSaved(false);
-            }}
-          />
-          <button
-            onClick={handleSave}
-            className={`mt-3 w-full py-2 px-4 rounded-md text-white font-medium transition-colors ${
-              saved ? 'bg-green-500 hover:bg-green-600' : 'bg-indigo-600 hover:bg-indigo-700'
-            }`}
-          >
-            {saved ? 'Saved!' : 'Save Key'}
-          </button>
-        </section>
+        <CardContent className="px-0 space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="api-key">Gemini API Key</Label>
+            <div className="flex gap-2">
+              <Input
+                id="api-key"
+                type="password"
+                placeholder="Paste your API Key"
+                value={apiKey}
+                onChange={(e) => {
+                    setApiKeyValue(e.target.value);
+                    setSaved(false);
+                }}
+                className="font-mono text-sm"
+              />
+              <Button 
+                size="icon" 
+                onClick={handleSave}
+                variant={saved ? "default" : "secondary"}
+                className={saved ? "bg-green-600 hover:bg-green-700" : ""}
+              >
+                {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Your key is stored locally in your browser.
+            </p>
+          </div>
 
-        <section className="flex flex-col gap-2 mt-2">
-            <button className="flex items-center justify-center gap-2 w-full py-3 bg-white border border-indigo-100 hover:border-indigo-300 rounded-lg shadow-sm text-gray-700 hover:text-indigo-600 transition-all group">
-                <span className="text-lg">📸</span>
-                <span className="font-medium">Capture Full Page</span>
-            </button>
-            <button className="flex items-center justify-center gap-2 w-full py-3 bg-white border border-indigo-100 hover:border-indigo-300 rounded-lg shadow-sm text-gray-700 hover:text-indigo-600 transition-all group">
-                <span className="text-lg">🖱️</span>
-                <span className="font-medium">Select Component</span>
-            </button>
-        </section>
-      </main>
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant="outline" className="h-24 flex flex-col gap-2 hover:border-indigo-500 hover:text-indigo-600 transition-all">
+              <Camera className="h-6 w-6" />
+              <span className="text-xs font-medium">Full Page</span>
+            </Button>
+            <Button variant="outline" className="h-24 flex flex-col gap-2 hover:border-indigo-500 hover:text-indigo-600 transition-all">
+              <MousePointerClick className="h-6 w-6" />
+              <span className="text-xs font-medium">Select Component</span>
+            </Button>
+          </div>
+        </CardContent>
 
-      <footer className="mt-6 text-center text-[10px] text-gray-400">
-        Powered by Google Gemini
-      </footer>
+        <CardFooter className="px-0 pt-2 flex justify-center">
+          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+            Powered by Google Gemini <span className="text-xs">✨</span>
+          </p>
+        </CardFooter>
+      </Card>
     </div>
   );
 }
