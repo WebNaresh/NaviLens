@@ -21,7 +21,8 @@ export const STORAGE_KEYS = {
 
 export const getApiKey = async (): Promise<string | null> => {
   const result = await chrome.storage.local.get(STORAGE_KEYS.GEMINI_API_KEY);
-  return result[STORAGE_KEYS.GEMINI_API_KEY] || null;
+  const key = result[STORAGE_KEYS.GEMINI_API_KEY];
+  return typeof key === 'string' ? key : null;
 };
 
 export const setApiKey = async (key: string): Promise<void> => {
