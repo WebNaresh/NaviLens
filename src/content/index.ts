@@ -226,4 +226,4 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-console.log('NaviLens Content Script Loaded');
+console.log('NaviLens Content Script V1 Loaded');
