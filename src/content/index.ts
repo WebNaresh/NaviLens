@@ -457,14 +457,21 @@ console.log('NaviLens Content Script V1 Loaded');
 
 // --- Auto-Paste Logic ---
 
+let hasRunAutoPaste = false;
+
 const checkForPendingPaste = async () => {
+    if (hasRunAutoPaste) return;
+    
     const data = await chrome.storage.local.get('navilens_pending_paste');
     const pending = data.navilens_pending_paste as { platform: string, timestamp: number } | undefined;
 
-    if (pending && (Date.now() - pending.timestamp < 15000)) { // 15s window
-        console.log('[NaviLens] Found pending paste for:', pending.platform);
+    if (pending && (Date.now() - pending.timestamp < 15000)) { 
+        // Claim execution immediately
+        hasRunAutoPaste = true;
         
-        // Clear immediately to prevent double-paste on reload
+        console.log('[NaviLens] Found pending paste task for:', pending.platform);
+        
+        // Clear storage to prevent other tabs/reloads from running it
         await chrome.storage.local.remove('navilens_pending_paste');
 
         if (window.location.host.includes('gemini.google.com') || window.location.host.includes('chatgpt.com')) {
@@ -482,25 +489,15 @@ const attemptAutoPaste = async (platform: string) => {
         console.log('[NaviLens] Target input found. Focusing...');
         (input as HTMLElement).focus();
         
-        // Brief delay to ensure focus sticks
-        await new Promise(r => setTimeout(r, 500));
+        // Wait 800ms for the app to settle/hydrate (Helps avoid "blocked" states)
+        await new Promise(r => setTimeout(r, 800));
 
-        console.log('[NaviLens] Attempting programmatic paste...');
+        console.log('[NaviLens] Triggering single paste attempt...');
         try {
-            // Method 1: execCommand (Works if permission granted/simulated)
-            const success = document.execCommand('paste');
-            console.log('[NaviLens] execCommand("paste") result:', success);
-            
-            if (!success) {
-                console.log('[NaviLens] execCommand failed. Attempting DataTransfer event injection...');
-                // Fallback: Dispatch Paste Event (Often blocked, but worth a try)
-                // Note: We can't access the system clipboard here to read the blob programmatically 
-                // without a user gesture. This is a "Hail Mary" attempt.
-                // The most effective part of this function is simply FOCUSING the element 
-                // so the user's manual Ctrl+V works immediately.
-            }
+            // Single, atomic attempt
+            document.execCommand('paste');
         } catch (e) {
-            console.error('[NaviLens] Paste attempt failed:', e);
+            // Silent catch to avoid console noise
         }
     }
 };
