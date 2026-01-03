@@ -92,19 +92,6 @@ const showLoading = (message: string = "Analyzing UI component...") => {
   panel.style.display = 'block';
 };
 
-const showResults = (text: string) => {
-  const panel = createFloatingPanel();
-  const content = document.getElementById('navilens-content');
-  if (content) {
-    // Simple markdown-like parsing for bold text
-    const formattedText = text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n/g, '<br>');
-    
-    content.innerHTML = formattedText;
-  }
-  panel.style.display = 'block';
-};
 
 const showError = (error: string, imageUri?: string) => {
   const panel = createFloatingPanel();
@@ -148,25 +135,6 @@ const showError = (error: string, imageUri?: string) => {
 
 // --- Capture & Analysis ---
 
-const processCapture = async (imageData: string) => {
-  // Loading state already shown with preview by caller
-  
-  try {
-    const response = await chrome.runtime.sendMessage({ 
-      type: 'ANALYZE_IMAGE', 
-      imageBase64: imageData 
-    });
-
-    if (response && response.success) {
-      showResults(response.data);
-    } else {
-      showError(response?.error || 'Unknown error', imageData);
-    }
-  } catch (error) {
-    console.error("Message passing failed:", error);
-    showError("Failed to communicate with the extension.", imageData);
-  }
-};
 
 const captureElement = async (element: HTMLElement) => {
   try {
