@@ -11,16 +11,23 @@ const state: SelectionState = {
 };
 
 // --- Styles for the highlighter ---
-const overlay = document.createElement('div');
-overlay.style.position = 'fixed';
-overlay.style.pointerEvents = 'none';
-overlay.style.border = '2px solid #4f46e5'; // Indigo-600
-overlay.style.backgroundColor = 'rgba(79, 70, 229, 0.1)';
-overlay.style.borderRadius = '4px';
-overlay.style.zIndex = '2147483646'; // High but below panel
-overlay.style.display = 'none';
-overlay.style.transition = 'all 0.1s ease';
-document.body.appendChild(overlay);
+// --- Styles for the highlighter ---
+let overlay: HTMLElement | null = null;
+
+const createOverlay = () => {
+  if (overlay) return overlay;
+  overlay = document.createElement('div');
+  overlay.style.position = 'fixed';
+  overlay.style.pointerEvents = 'none';
+  overlay.style.border = '2px solid #4f46e5'; // Indigo-600
+  overlay.style.backgroundColor = 'rgba(79, 70, 229, 0.1)';
+  overlay.style.borderRadius = '4px';
+  overlay.style.zIndex = '2147483646'; // High but below panel
+  overlay.style.display = 'none';
+  overlay.style.transition = 'all 0.1s ease';
+  document.body.appendChild(overlay);
+  return overlay;
+};
 
 // --- UI Helpers ---
 
@@ -142,6 +149,7 @@ const captureElement = async (element: HTMLElement) => {
     showLoading("Capturing component...<br><span style='font-size: 12px; color: #94a3b8;'>Rendering element</span>");
     
     // Hide overlay for clean capture
+    const overlay = createOverlay();
     overlay.style.display = 'none';
     
     // Give UI a moment to update
@@ -193,11 +201,12 @@ const handleMouseMove = (e: MouseEvent) => {
   state.hoveredElement = target;
   
   const rect = target.getBoundingClientRect();
-  overlay.style.top = `${rect.top}px`;
-  overlay.style.left = `${rect.left}px`;
-  overlay.style.width = `${rect.width}px`;
-  overlay.style.height = `${rect.height}px`;
-  overlay.style.display = 'block';
+  const ov = createOverlay();
+  ov.style.top = `${rect.top}px`;
+  ov.style.left = `${rect.left}px`;
+  ov.style.width = `${rect.width}px`;
+  ov.style.height = `${rect.height}px`;
+  ov.style.display = 'block';
 };
 
 const handleClick = async (e: MouseEvent) => {
@@ -222,7 +231,7 @@ const toggleSelection = (active: boolean) => {
     document.removeEventListener('mousemove', handleMouseMove);
     document.removeEventListener('click', handleClick, true);
     document.body.style.cursor = 'default';
-    overlay.style.display = 'none';
+    if (overlay) overlay.style.display = 'none';
     state.hoveredElement = null;
   }
 };
