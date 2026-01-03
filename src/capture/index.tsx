@@ -34,7 +34,13 @@ const CaptureResult = () => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [isPenActive, setIsPenActive] = useState(false);
   const [penColor, setPenColor] = useState('#ef4444'); 
-  const [lineWidth, setLineWidth] = useState(4); // Default width
+  const [lineWidth, setLineWidth] = useState(2); // Smaller default
+  
+  // Crop State
+  const [isCropActive, setIsCropActive] = useState(false);
+  const [cropStart, setCropStart] = useState<{x: number, y: number} | null>(null);
+  const [cropEnd, setCropEnd] = useState<{x: number, y: number} | null>(null);
+  const [isCropping, setIsCropping] = useState(false);
   
   // Undo History
   const [history, setHistory] = useState<ImageData[]>([]);
@@ -105,6 +111,45 @@ const CaptureResult = () => {
       return () => window.removeEventListener('keydown', handleKeyDown);
   }, [historyStep, history]); // Re-bind on history change
 
+  // Crop Handlers
+  const startCrop = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+      if (!isCropActive || !canvasRef.current) return;
+      setIsCropping(true);
+      
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+      
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      
+      setCropStart({x, y});
+      setCropEnd({x, y});
+  };
+
+  const doCrop = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+      if (!isCropping || !cropStart) return;
+      
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
+      const rect = canvas.getBoundingClientRect();
+      const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+      
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      
+      setCropEnd({x, y});
+  };
+
+  const endCrop = () => {
+      if (isCropping) {
+          setIsCropping(false);
+      }
+  };
+
   // Drawing Handlers
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
       if (!isPenActive || !canvasRef.current) return;
@@ -154,7 +199,7 @@ const CaptureResult = () => {
       }
   };
 
-  // Helper to merge Image + Canvas
+  // Helper to merge Image + Canvas (with crop)
   const getMergedImageUri = (): Promise<string> => {
       return new Promise((resolve) => {
           if (!imageRef.current || !canvasRef.current) {
@@ -162,18 +207,37 @@ const CaptureResult = () => {
               return;
           }
 
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
           const img = imageRef.current;
           const overlay = canvasRef.current;
+          
+          // Determine crop area
+          let cropX = 0, cropY = 0, cropW = img.naturalWidth, cropH = img.naturalHeight;
+          
+          if (cropStart && cropEnd) {
+              const scaleX = img.naturalWidth / img.width;
+              const scaleY = img.naturalHeight / img.height;
+              
+              const x1 = Math.min(cropStart.x, cropEnd.x) * scaleX;
+              const y1 = Math.min(cropStart.y, cropEnd.y) * scaleY;
+              const x2 = Math.max(cropStart.x, cropEnd.x) * scaleX;
+              const y2 = Math.max(cropStart.y, cropEnd.y) * scaleY;
+              
+              cropX = x1;
+              cropY = y1;
+              cropW = x2 - x1;
+              cropH = y2 - y1;
+          }
 
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          canvas.width = cropW;
+          canvas.height = cropH;
 
-          // Draw base image
-          ctx?.drawImage(img, 0, 0);
-          // Draw annotations
-          ctx?.drawImage(overlay, 0, 0);
+          // Draw cropped base image
+          ctx?.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+          // Draw cropped annotations
+          ctx?.drawImage(overlay, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
           resolve(canvas.toDataURL('image/png'));
       });
@@ -291,11 +355,29 @@ const CaptureResult = () => {
           {/* Drawing Controls */}
           <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-2 border border-gray-200 shadow-sm">
                 <button
-                    onClick={() => setIsPenActive(!isPenActive)}
+                    onClick={() => {
+                        setIsPenActive(!isPenActive);
+                        setIsCropActive(false);
+                    }}
                     className={`p-2 rounded-md transition-colors ${isPenActive ? 'bg-indigo-100 text-indigo-700 ring-2 ring-indigo-500' : 'text-gray-500 hover:bg-gray-200'}`}
                     title="Toggle Pen"
                 >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                </button>
+                
+                <button
+                    onClick={() => {
+                        setIsCropActive(!isCropActive);
+                        setIsPenActive(false);
+                        if (!isCropActive) {
+                            setCropStart(null);
+                            setCropEnd(null);
+                        }
+                    }}
+                    className={`p-2 rounded-md transition-colors ${isCropActive ? 'bg-green-100 text-green-700 ring-2 ring-green-500' : 'text-gray-500 hover:bg-gray-200'}`}
+                    title="Crop Image"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" /></svg>
                 </button>
                 
                 {isPenActive && (
@@ -321,8 +403,8 @@ const CaptureResult = () => {
                         <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg>
                         <input
                             type="range"
-                            min="2"
-                            max="20"
+                            min="1"
+                            max="10"
                             value={lineWidth}
                             onChange={(e) => setLineWidth(parseInt(e.target.value))}
                             className="w-20 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
