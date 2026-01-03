@@ -106,11 +106,22 @@ const showResults = (text: string) => {
   panel.style.display = 'block';
 };
 
-const showError = (error: string) => {
+const showError = (error: string, imageUri?: string) => {
   const panel = createFloatingPanel();
   const content = document.getElementById('navilens-content');
   if (content) {
-    content.innerHTML = `<p style="color: #ef4444; text-align: center;">Error: ${error}</p>`;
+    let html = `<p style="color: #ef4444; text-align: center; font-weight: 500;">AI Analysis Failed</p>`;
+    html += `<p style="color: #64748b; font-size: 13px; margin-top: 8px; text-align: center;">${error}</p>`;
+    
+    if (imageUri) {
+        html += `
+            <div style="margin-top: 16px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; max-height: 200px;">
+                <p style="background: #f1f5f9; padding: 4px 8px; font-size: 11px; color: #64748b; text-align: center; border-bottom: 1px solid #e2e8f0;">Captured Screenshot</p>
+                <img src="${imageUri}" style="width: 100%; height: auto; display: block;" />
+            </div>
+        `;
+    }
+    content.innerHTML = html;
   }
   panel.style.display = 'block';
 };
@@ -118,7 +129,7 @@ const showError = (error: string) => {
 // --- Capture & Analysis ---
 
 const processCapture = async (imageData: string) => {
-  showLoading();
+  // Loading state already shown with preview by caller
   
   try {
     const response = await chrome.runtime.sendMessage({ 
@@ -129,11 +140,11 @@ const processCapture = async (imageData: string) => {
     if (response && response.success) {
       showResults(response.data);
     } else {
-      showError(response?.error || 'Unknown error');
+      showError(response?.error || 'Unknown error', imageData);
     }
   } catch (error) {
     console.error("Message passing failed:", error);
-    showError("Failed to communicate with the extension.");
+    showError("Failed to communicate with the extension.", imageData);
   }
 };
 
