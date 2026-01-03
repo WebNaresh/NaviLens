@@ -77,14 +77,14 @@ const createFloatingPanel = () => {
   return panel;
 };
 
-const showLoading = () => {
+const showLoading = (message: string = "Analyzing UI component...") => {
   const panel = createFloatingPanel();
   const content = document.getElementById('navilens-content');
   if (content) {
     content.innerHTML = `
       <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
         <div style="border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
-        <p style="margin-top: 12px; color: #64748b;">Analyzing UI component...</p>
+        <p style="margin-top: 12px; color: #64748b; text-align: center;">${message}</p>
         <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
       </div>
     `;
@@ -210,13 +210,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     sendResponse({ status: 'selection_active' });
   } else if (message.type === 'CAPTURE_FULL_PAGE') {
     console.log('[Content] Starting full page capture...');
+    
+    // IMMEDIATE FEEDBACK: Show loading state with explicit message
+    showLoading("Capturing full page...<br><span style='font-size: 12px; color: #94a3b8;'>(This may take a few seconds)</span>");
+
     setTimeout(async () => {
         try {
             console.log('[Content] Executing html2canvas...');
             const canvas = await html2canvas(document.body, {
                 useCORS: true,
                 logging: true, // Enable html2canvas logs
-                allowTaint: true
+                allowTaint: true,
+                ignoreElements: (element) => {
+                    // Ignore our own panel/overlay to avoid recursive capture issues or visual clutter
+                    return element.id === 'navilens-panel' || element === overlay; 
+                }
             });
             console.log('[Content] Canvas created, converting to data URL...');
             const imageUri = canvas.toDataURL('image/png');
@@ -226,7 +234,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             console.error('[Content] Full page capture failed:', error);
             showError('Full page capture failed.');
         }
-    }, 500);
+    }, 100);
     sendResponse({ status: 'capturing' });
   }
 });

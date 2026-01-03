@@ -26,7 +26,14 @@ function App() {
       }
       
       const m = await getModel();
-      if (m) setModelValue(m);
+      if (m && m !== 'gemini-3-pro') {
+          setModelValue(m);
+      } else {
+          // Reset if invalid/legacy model found
+          console.log("Resetting invalid model to default");
+          setModelValue('gemini-1.5-flash');
+          setModel('gemini-1.5-flash');
+      }
     };
     loadSettings();
   }, []);
