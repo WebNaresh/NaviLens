@@ -30,15 +30,20 @@ export const analyzeImageWithGemini = async (
     const text = response.text();
 
     return { text };
+    return { text };
   } catch (error: any) {
     console.error("Gemini SDK Error:", error);
     let errorMessage = error.message || "Unknown error occurred";
     
-    // Improve error message if possible
+    // Detailed error diagnostics
     if (errorMessage.includes("404")) {
-      errorMessage = `Model '${modelName}' not found or not available for your API key.`;
+      errorMessage = `Model '${modelName}' not found (404). \n\nPossible causes:\n1. This model version might be deprecated.\n2. Your API Key might not have access to this model.\n3. The model might not be available in your region.`;
+    } else if (errorMessage.includes("403")) {
+      errorMessage = "Access Forbidden (403). Your API Key is valid but lacks permission for this action (or quota exceeded).";
+    } else if (errorMessage.includes("400") && errorMessage.includes("API key")) {
+      errorMessage = "Invalid API Key (400). Please check your key.";
     } else if (errorMessage.includes("400")) {
-      errorMessage = "Bad Request. Please check your image or prompt.";
+      errorMessage = "Bad Request (400). The image validation failed or prompt is invalid.";
     }
 
     return { 
