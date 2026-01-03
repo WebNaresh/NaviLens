@@ -1,32 +1,52 @@
 import { useState, useEffect } from 'react';
 import { getApiKey, setApiKey, getModel, setModel } from './lib/storage';
+import { fetchGeminiModels, GeminiModel } from './lib/gemini';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Camera, MousePointerClick, Save, Check } from 'lucide-react';
+// import { Camera, MousePointerClick, Save, Check, RefreshCw } from 'lucide-react'; // Added RefreshCw if needed, but keeping existing imports for now
+import { Camera, MousePointerClick, Save, Check, Loader2 } from 'lucide-react';
 
 function App() {
   const [apiKey, setApiKeyValue] = useState('');
   const [model, setModelValue] = useState('gemini-1.5-flash');
   const [saved, setSaved] = useState(false);
+  const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   useEffect(() => {
     // Load saved settings
-    getApiKey().then((key) => {
-      if (key) setApiKeyValue(key);
-    });
-    getModel().then((m) => {
+    const loadSettings = async () => {
+      const key = await getApiKey();
+      if (key) {
+        setApiKeyValue(key);
+        fetchModels(key);
+      }
+      
+      const m = await getModel();
       if (m) setModelValue(m);
-    });
+    };
+    loadSettings();
   }, []);
+
+  const fetchModels = async (key: string) => {
+    setLoadingModels(true);
+    const models = await fetchGeminiModels(key);
+    setAvailableModels(models);
+    setLoadingModels(false);
+  };
 
   const handleSave = async () => {
     if (!apiKey.trim()) return;
     await setApiKey(apiKey);
     await setModel(model);
     setSaved(true);
+    
+    // Refresh models on save in case key changed
+    fetchModels(apiKey);
+    
     setTimeout(() => setSaved(false), 2000);
   };
 
@@ -46,13 +66,14 @@ function App() {
     }
   };
 
-  const MODELS = [
-    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (Exp)' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
-    { id: 'gemini-1.5-pro-002', name: 'Gemini 1.5 Pro (002)' },
-    { id: 'gemini-1.5-flash-002', name: 'Gemini 1.5 Flash (002)' },
+  // Fallback models if fetch fails or key is invalid
+  const defaultModels = [
+    { name: 'models/gemini-1.5-flash', displayName: 'Gemini 1.5 Flash (Default)' },
+    { name: 'models/gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' },
+    { name: 'models/gemini-2.0-flash-exp', displayName: 'Gemini 2.0 Flash (Exp)' },
   ];
+
+  const displayModels = availableModels.length > 0 ? availableModels : defaultModels;
 
   return (
     <div className="w-[350px] min-h-[500px] bg-background font-sans p-4">
@@ -94,12 +115,13 @@ function App() {
                 }}
                 className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
+                {displayModels.map((m) => (
+                  <option key={m.name} value={m.name.replace('models/', '')}>
+                    {m.displayName}
                   </option>
                 ))}
               </select>
+              {loadingModels && <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Fetching models...</p>}
             </div>
 
             <Button 
