@@ -89,7 +89,7 @@ const CaptureResult = () => {
                 <ShareButton 
                     label="VS Code" 
                     icon={<svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>} 
-                    onClick={() => handleShare('VS Code')}
+                    onClick={() => handleShare('VS Code', 'OPEN_VSCODE')}
                 />
                 <ShareButton 
                     label="Antigravity" 
