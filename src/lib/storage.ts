@@ -1,10 +1,11 @@
 // Basic polyfill/mock for development outside extension
 if (typeof chrome === 'undefined' || !chrome.storage) {
-  /* eslint-disable @typescript-eslint/no-explicit-any */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (window as any).chrome = {
     storage: {
       local: {
         get: (key: string) => Promise.resolve({ [key]: localStorage.getItem(key) }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         set: (items: Record<string, any>) => {
           Object.entries(items).forEach(([k, v]) => localStorage.setItem(k, v));
           return Promise.resolve();
