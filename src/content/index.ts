@@ -234,14 +234,59 @@ const performScrollCapture = async (mode: 'internal' | 'clipboard') => {
         const tempCanvas = document.createElement('canvas');
         const context = tempCanvas.getContext('2d');
         
-        // 1. Setup dimensions
-        const fullHeight = Math.max(
-            document.documentElement.scrollHeight, 
-            document.body.scrollHeight,
-            document.documentElement.offsetHeight
-        );
+        // Helper to find the main scrollable element
+        const getScroller = () => {
+            // 1. Check if window itself scrolls deeply
+            const docHeight = Math.max(
+                document.documentElement.scrollHeight, 
+                document.body.scrollHeight
+            );
+            
+            // Heuristic: If doc is significantly larger than viewport, assume window scroll
+            if (docHeight > window.innerHeight + 50 && 
+                window.getComputedStyle(document.body).overflowY !== 'hidden' &&
+                window.getComputedStyle(document.documentElement).overflowY !== 'hidden') {
+                return { element: null, height: docHeight, viewHeight: window.innerHeight };
+            }
+
+            // 2. Find largest scrollable element
+            let maxArea = 0;
+            let bestEl: HTMLElement | null = null;
+            
+            const allElements = document.querySelectorAll('*');
+            for (let i = 0; i < allElements.length; i++) {
+                const el = allElements[i] as HTMLElement;
+                // Optimization: skip hidden or small elements
+                if (el.scrollHeight <= el.clientHeight) continue;
+                
+                const rect = el.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) continue;
+
+                const style = window.getComputedStyle(el);
+                if (['auto', 'scroll'].includes(style.overflowY)) {
+                     const area = rect.width * rect.height;
+                     if (area > maxArea && area > 50000) { // arbitrary min size
+                         maxArea = area;
+                         bestEl = el;
+                     }
+                }
+            }
+
+            if (bestEl) {
+                console.log('[Content] Found active inner scroller:', bestEl);
+                return { element: bestEl, height: bestEl.scrollHeight, viewHeight: bestEl.clientHeight };
+            }
+            
+            // Fallback to window
+            return { element: null, height: docHeight, viewHeight: window.innerHeight };
+        };
+
+        const scroller = getScroller();
+        console.log(`[Content] capturing target: ${scroller.element ? scroller.element.tagName : 'WINDOW'}, height: ${scroller.height}`);
+
+        const fullHeight = scroller.height;
         const fullWidth = document.documentElement.clientWidth;
-        const viewportHeight = window.innerHeight;
+        const viewportHeight = scroller.viewHeight; // Use scroller's viewport height for stepping
         
         // Handle high DPI
         const devicePixelRatio = window.devicePixelRatio || 1;
@@ -249,22 +294,24 @@ const performScrollCapture = async (mode: 'internal' | 'clipboard') => {
         tempCanvas.width = fullWidth * devicePixelRatio;
         tempCanvas.height = fullHeight * devicePixelRatio;
         
-        console.log(`[Content] Capture dimensions: ${fullWidth}x${fullHeight} (@${devicePixelRatio}x)`);
-
         let currentScroll = 0;
         const captures: { y: number, dataUrl: string, height: number }[] = [];
 
         // 2. Scroll Loop
         while (currentScroll < fullHeight) {
             // Scroll to position
-            window.scrollTo(0, currentScroll);
+            if (scroller.element) {
+                scroller.element.scrollTo(0, currentScroll);
+            } else {
+                window.scrollTo(0, currentScroll);
+            }
             
             // Wait for scroll/render AND respect Chrome's capture quota
             await new Promise(r => setTimeout(r, 800)); 
             
             // Hide panel before capture to avoid artifacts
             const panel = document.getElementById('navilens-panel');
-            const overlay = document.querySelector('div[style*="rgba(79, 70, 229, 0.1)"]') as HTMLElement; // selection overlay
+            const overlay = document.querySelector('div[style*="rgba(79, 70, 229, 0.1)"]') as HTMLElement;
             
             if (panel) panel.style.opacity = '0'; 
             if (overlay) overlay.style.opacity = '0';
@@ -296,7 +343,11 @@ const performScrollCapture = async (mode: 'internal' | 'clipboard') => {
         }
 
         // Restore scroll
-        window.scrollTo(0, 0);
+        if (scroller.element) {
+            scroller.element.scrollTo(0, 0);
+        } else {
+            window.scrollTo(0, 0);
+        }
         
         showLoading("Stitching images...<br><span style='font-size: 12px; color: #94a3b8;'>Processing...</span>");
 
@@ -309,8 +360,8 @@ const performScrollCapture = async (mode: 'internal' | 'clipboard') => {
                 
                 context.drawImage(
                     img, 
-                    0, 0, img.width, img.height, // Source
-                    0, capture.y * devicePixelRatio, tempCanvas.width, img.height // Dest (y scaled)
+                    0, 0, img.width, img.height, // Source full capture
+                    0, capture.y * devicePixelRatio, tempCanvas.width, img.height // Dest
                 );
             }
         }
