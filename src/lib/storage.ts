@@ -31,7 +31,7 @@ export const setApiKey = async (key: string): Promise<void> => {
 };
 
 export const getModel = async (): Promise<string> => {
-  const result = await chrome.storage.local.get(STORAGE_KEYS.GEMINI_MODEL);
+  const result = await chrome.storage.local.get(STORAGE_KEYS.GEMINI_MODEL) as Record<string, any>;
   return result[STORAGE_KEYS.GEMINI_MODEL] || 'gemini-1.5-flash';
 };
 
