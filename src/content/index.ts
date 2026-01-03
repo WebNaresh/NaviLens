@@ -488,12 +488,13 @@ const attemptAutoPaste = async (platform: string, imageUri?: string) => {
         
         await new Promise(r => setTimeout(r, 800));
 
-        console.log('[NaviLens] Triggering synthetic paste...');
+        console.log('[NaviLens] Triggering action...');
         
-        if (imageUri) {
+        // Gemini: Synthetic Paste works great!
+        if (platform === 'Gemini' && imageUri) {
             try {
-                // 1. Synthetic Event with Data (The Magic Fix)
                 const blob = dataURItoBlob(imageUri);
+                // Gemini is happy with a standard PNG file
                 const file = new File([blob], "screenshot.png", { type: 'image/png' });
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(file);
@@ -505,14 +506,22 @@ const attemptAutoPaste = async (platform: string, imageUri?: string) => {
                 });
 
                 input.dispatchEvent(pasteEvent);
-                console.log('[NaviLens] Synthetic paste event dispatched!');
-                return; // Success (hopefully)
+                console.log('[NaviLens] Synthetic paste event dispatched (Gemini)!');
+                return;
             } catch (e) {
                 console.error('[NaviLens] Synthetic paste failed:', e);
             }
         }
 
-        // 2. Fallback to standard execCommand
+        // ChatGPT: Synthetic events trigger "Unable to upload" / 403 errors.
+        // Best approach is to just FOCUS and let user paste (Ctrl+V).
+        if (platform === 'ChatGPT') {
+             console.log('[NaviLens] ChatGPT detected: Skipped synthetic paste to avoid block. Input focused.');
+             // We already focused the input above, so we are done.
+             return;
+        }
+
+        // Fallback for others
         try {
             document.execCommand('paste');
         } catch (e) {}
