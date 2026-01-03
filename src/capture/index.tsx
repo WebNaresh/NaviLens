@@ -30,32 +30,16 @@ const CaptureResult = () => {
   const handleShare = (platform: string, messageType?: string) => {
       if (!imageUri) return;
 
-      // 1. Copy Image & Text to Clipboard
+      // 1. Copy Image to Clipboard
       fetch(imageUri)
         .then(res => res.blob())
         .then(blob => {
-            const promptText = "How can we enhance this component?";
-            
-            // Try to write both text and image
-            try {
-                // Note: Writing multiple types to clipboard is supported in modern browsers
-                // We create a ClipboardItem with both types if possible, or just image and assume user will type text, or text and image.
-                // Actually, standard ClipboardItem usage for both:
-                const data = [new ClipboardItem({ 
-                    [blob.type]: blob,
-                    'text/plain': new Blob([promptText], { type: 'text/plain' })
-                })];
-                
-                return navigator.clipboard.write(data);
-            } catch (e) {
-                console.warn('Advanced clipboard write failed, falling back to just image', e);
-                const data = [new ClipboardItem({ [blob.type]: blob })];
-                return navigator.clipboard.write(data);
-            }
+            const data = [new ClipboardItem({ [blob.type]: blob })];
+            return navigator.clipboard.write(data);
         })
         .then(() => {
             // 2. Show Toast
-            let msg = `Copied! Paste into ${platform}`;
+            let msg = `Image Copied! Paste into ${platform}`;
             if (platform === 'Gemini' || platform === 'ChatGPT') msg += ' (Ctrl+V)';
             setToast(msg);
             setTimeout(() => setToast(null), 3000);
