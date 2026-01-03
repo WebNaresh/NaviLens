@@ -1,4 +1,4 @@
-import { getApiKey } from '../lib/storage';
+import { getApiKey, getModel } from '../lib/storage';
 import { analyzeImageWithGemini } from '../lib/gemini';
 
 console.log('NaviLens Background Service Worker Loaded');
@@ -15,6 +15,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 const handleAnalysis = async (imageBase64: string, sendResponse: (response: any) => void) => {
   try {
     const apiKey = await getApiKey();
+    const model = await getModel();
     
     if (!apiKey) {
       sendResponse({ success: false, error: 'API Key not found. Please set it in the extension popup.' });
@@ -22,7 +23,7 @@ const handleAnalysis = async (imageBase64: string, sendResponse: (response: any)
     }
 
     // Call Gemini API
-    const result = await analyzeImageWithGemini(apiKey, imageBase64);
+    const result = await analyzeImageWithGemini(apiKey, model, imageBase64);
 
     if (result.error) {
       sendResponse({ success: false, error: result.error });

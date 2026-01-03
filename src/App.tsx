@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getApiKey, setApiKey } from './lib/storage';
+import { getApiKey, setApiKey, getModel, setModel } from './lib/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,39 +9,38 @@ import { Camera, MousePointerClick, Save, Check } from 'lucide-react';
 
 function App() {
   const [apiKey, setApiKeyValue] = useState('');
+  const [model, setModelValue] = useState('gemini-1.5-flash');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    // Load saved settings
     getApiKey().then((key) => {
       if (key) setApiKeyValue(key);
+    });
+    getModel().then((m) => {
+      if (m) setModelValue(m);
     });
   }, []);
 
   const handleSave = async () => {
     if (!apiKey.trim()) return;
     await setApiKey(apiKey);
+    await setModel(model);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
+// ... (keep handleFullPageCapture and handleComponentSelect) ...
 
-  const handleFullPageCapture = async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab.id) {
-      window.close();
-      await chrome.tabs.sendMessage(tab.id, { type: 'CAPTURE_FULL_PAGE' });
-    }
-  };
-
-  const handleComponentSelect = async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab.id) {
-      window.close();
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SELECTION' });
-    }
-  };
+  const MODELS = [
+    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (Exp)' },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+    { id: 'gemini-1.5-pro-002', name: 'Gemini 1.5 Pro (002)' },
+    { id: 'gemini-1.5-flash-002', name: 'Gemini 1.5 Flash (002)' },
+  ];
 
   return (
-    <div className="w-[350px] min-h-[450px] bg-background font-sans p-4">
+    <div className="w-[350px] min-h-[500px] bg-background font-sans p-4">
       <Card className="border-none shadow-none">
         <CardHeader className="px-0 pt-0 pb-4">
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
@@ -53,9 +52,9 @@ function App() {
         <Separator className="mb-6" />
 
         <CardContent className="px-0 space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="api-key">Gemini API Key</Label>
-            <div className="flex gap-2">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="api-key">Gemini API Key</Label>
               <Input
                 id="api-key"
                 type="password"
@@ -67,18 +66,41 @@ function App() {
                 }}
                 className="font-mono text-sm"
               />
-              <Button 
-                size="icon" 
-                onClick={handleSave}
-                variant={saved ? "default" : "secondary"}
-                className={saved ? "bg-green-600 hover:bg-green-700" : ""}
-              >
-                {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-              </Button>
             </div>
-            <p className="text-[10px] text-muted-foreground">
-              Your key is stored locally in your browser.
-            </p>
+
+            <div className="space-y-2">
+              <Label htmlFor="model-select">AI Model</Label>
+              <select
+                id="model-select"
+                value={model}
+                onChange={(e) => {
+                  setModelValue(e.target.value);
+                  setSaved(false);
+                }}
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <Button 
+              onClick={handleSave}
+              className={`w-full ${saved ? "bg-green-600 hover:bg-green-700" : ""}`}
+            >
+              {saved ? (
+                <>
+                  <Check className="mr-2 h-4 w-4" /> Settings Saved
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" /> Save Settings
+                </>
+              )}
+            </Button>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

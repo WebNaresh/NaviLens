@@ -6,6 +6,7 @@ export interface GeminiResponse {
 
 export const analyzeImageWithGemini = async (
   apiKey: string,
+  modelName: string,
   imageBase64: string,
   prompt: string = "Analyze this UI component. Suggest improvements for design, accessibility, and user experience. Be concise."
 ): Promise<GeminiResponse> => {
@@ -13,7 +14,7 @@ export const analyzeImageWithGemini = async (
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
