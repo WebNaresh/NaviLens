@@ -10,17 +10,153 @@ const state: SelectionState = {
   hoveredElement: null,
 };
 
-// Styles for the highlighter
+// --- Styles for the highlighter ---
 const overlay = document.createElement('div');
 overlay.style.position = 'fixed';
 overlay.style.pointerEvents = 'none';
 overlay.style.border = '2px solid #4f46e5'; // Indigo-600
 overlay.style.backgroundColor = 'rgba(79, 70, 229, 0.1)';
 overlay.style.borderRadius = '4px';
-overlay.style.zIndex = '999999';
+overlay.style.zIndex = '2147483646'; // High but below panel
 overlay.style.display = 'none';
 overlay.style.transition = 'all 0.1s ease';
 document.body.appendChild(overlay);
+
+// --- UI Helpers ---
+
+const createFloatingPanel = () => {
+  let panel = document.getElementById('navilens-panel');
+  if (panel) return panel;
+
+  panel = document.createElement('div');
+  panel.id = 'navilens-panel';
+  panel.style.position = 'fixed';
+  panel.style.top = '20px';
+  panel.style.right = '20px';
+  panel.style.width = '350px';
+  panel.style.maxHeight = '90vh';
+  panel.style.backgroundColor = '#ffffff';
+  panel.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+  panel.style.borderRadius = '12px';
+  panel.style.zIndex = '2147483647'; // Max z-index
+  panel.style.fontFamily = 'Inter, system-ui, sans-serif';
+  panel.style.display = 'none';
+  panel.style.overflow = 'hidden';
+  panel.style.border = '1px solid #e2e8f0';
+  
+  // Header
+  const header = document.createElement('div');
+  header.style.padding = '16px';
+  header.style.borderBottom = '1px solid #e2e8f0';
+  header.style.display = 'flex';
+  header.style.justifyContent = 'space-between';
+  header.style.alignItems = 'center';
+  header.innerHTML = `
+    <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #1e293b;">NaviLens Suggestions</h3>
+    <button id="navilens-close" style="background: none; border: none; cursor: pointer; color: #64748b; font-size: 20px;">×</button>
+  `;
+  panel.appendChild(header);
+
+  // Content Area
+  const content = document.createElement('div');
+  content.id = 'navilens-content';
+  content.style.padding = '16px';
+  content.style.overflowY = 'auto';
+  content.style.maxHeight = 'calc(90vh - 60px)';
+  content.style.fontSize = '14px';
+  content.style.lineHeight = '1.5';
+  content.style.color = '#334155';
+  panel.appendChild(content);
+
+  document.body.appendChild(panel);
+
+  document.getElementById('navilens-close')?.addEventListener('click', () => {
+    panel!.style.display = 'none';
+  });
+
+  return panel;
+};
+
+const showLoading = () => {
+  const panel = createFloatingPanel();
+  const content = document.getElementById('navilens-content');
+  if (content) {
+    content.innerHTML = `
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
+        <div style="border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
+        <p style="margin-top: 12px; color: #64748b;">Analyzing UI component...</p>
+        <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+      </div>
+    `;
+  }
+  panel.style.display = 'block';
+};
+
+const showResults = (text: string) => {
+  const panel = createFloatingPanel();
+  const content = document.getElementById('navilens-content');
+  if (content) {
+    // Simple markdown-like parsing for bold text
+    const formattedText = text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n/g, '<br>');
+    
+    content.innerHTML = formattedText;
+  }
+  panel.style.display = 'block';
+};
+
+const showError = (error: string) => {
+  const panel = createFloatingPanel();
+  const content = document.getElementById('navilens-content');
+  if (content) {
+    content.innerHTML = `<p style="color: #ef4444; text-align: center;">Error: ${error}</p>`;
+  }
+  panel.style.display = 'block';
+};
+
+// --- Capture & Analysis ---
+
+const processCapture = async (imageData: string) => {
+  showLoading();
+  
+  try {
+    const response = await chrome.runtime.sendMessage({ 
+      type: 'ANALYZE_IMAGE', 
+      imageBase64: imageData 
+    });
+
+    if (response && response.success) {
+      showResults(response.data);
+    } else {
+      showError(response?.error || 'Unknown error');
+    }
+  } catch (error) {
+    console.error("Message passing failed:", error);
+    showError("Failed to communicate with the extension.");
+  }
+};
+
+const captureElement = async (element: HTMLElement) => {
+  try {
+    overlay.style.display = 'none';
+    
+    const canvas = await html2canvas(element, {
+      useCORS: true,
+      logging: false,
+      allowTaint: true
+    });
+    
+    const imageUri = canvas.toDataURL('image/png');
+    await processCapture(imageUri);
+    
+  } catch (error) {
+    console.error('Capture failed:', error);
+    showError('Failed to capture component.');
+  }
+};
+
+// --- Event Handlers ---
 
 const handleMouseMove = (e: MouseEvent) => {
   if (!state.active) return;
@@ -38,32 +174,6 @@ const handleMouseMove = (e: MouseEvent) => {
   overlay.style.display = 'block';
 };
 
-const captureElement = async (element: HTMLElement) => {
-  try {
-    // Hide overlay before capture
-    overlay.style.display = 'none';
-    
-    // Capture
-    const canvas = await html2canvas(element, {
-      useCORS: true,
-      logging: false,
-      allowTaint: true
-    });
-    
-    const imageUri = canvas.toDataURL('image/png');
-    console.log('Captured component:', imageUri.substring(0, 50) + '...');
-    
-    // TODO: Show results UI
-    alert('Component captured! Check console.');
-    
-  } catch (error) {
-    console.error('Capture failed:', error);
-    alert('Failed to capture component.');
-  } finally {
-     // Show overlay again if we stay in selection mode (optional, but we usually toggle off)
-  }
-};
-
 const handleClick = async (e: MouseEvent) => {
   if (!state.active || !state.hoveredElement) return;
   
@@ -71,7 +181,7 @@ const handleClick = async (e: MouseEvent) => {
   e.stopPropagation();
   
   const target = state.hoveredElement;
-  toggleSelection(false); // Stop selection mode
+  toggleSelection(false); 
   
   await captureElement(target);
 };
@@ -91,13 +201,13 @@ const toggleSelection = (active: boolean) => {
   }
 };
 
-// Listen for messages from popup
+// --- Message Listener ---
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'TOGGLE_SELECTION') {
     toggleSelection(true);
     sendResponse({ status: 'selection_active' });
   } else if (message.type === 'CAPTURE_FULL_PAGE') {
-    // delay slightly to allow popup to close fully
     setTimeout(async () => {
         try {
             const canvas = await html2canvas(document.body, {
@@ -106,11 +216,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 allowTaint: true
             });
             const imageUri = canvas.toDataURL('image/png');
-            console.log('Captured full page:', imageUri.substring(0, 50) + '...');
-            alert('Full page captured! Check console.');
+            await processCapture(imageUri);
         } catch (error) {
             console.error('Full page capture failed:', error);
-            alert('Full page capture failed.');
+            showError('Full page capture failed.');
         }
     }, 500);
     sendResponse({ status: 'capturing' });
