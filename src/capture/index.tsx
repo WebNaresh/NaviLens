@@ -133,6 +133,11 @@ const CaptureResult = () => {
 
 
         <div className="flex flex-col items-center justify-center p-8 bg-gray-50 min-h-[500px]">
+           {error && (
+              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                  <span className="block sm:inline">{error}</span>
+              </div>
+           )}
            {imageUri ? (
               <img src={imageUri} alt="Captured Screenshot" className="max-w-full h-auto shadow-sm border border-gray-200 rounded-lg" />
             ) : (
