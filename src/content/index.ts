@@ -170,16 +170,43 @@ const processCapture = async (imageData: string) => {
 
 const captureElement = async (element: HTMLElement) => {
   try {
+    // 1. UI Feedback
+    showLoading("Capturing component...<br><span style='font-size: 12px; color: #94a3b8;'>Rendering element</span>");
+    
+    // Hide overlay for clean capture
     overlay.style.display = 'none';
     
+    // Give UI a moment to update
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+
     const canvas = await html2canvas(element, {
       useCORS: true,
       logging: false,
-      allowTaint: true
+      allowTaint: true,
+      backgroundColor: null, // Transparent background if possible
+      scale: window.devicePixelRatio // Better quality
     });
     
     const imageUri = canvas.toDataURL('image/png');
-    await processCapture(imageUri);
+    
+    // 2. Save to storage
+    await chrome.storage.local.set({ 
+        'navilens_current_capture': {
+            imageUri: imageUri,
+            timestamp: Date.now()
+        }
+    });
+
+    showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
+
+    // 3. Open Result Tab
+    await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+    
+    // Close panel
+    setTimeout(() => {
+        const panel = document.getElementById('navilens-panel');
+        if (panel) panel.style.display = 'none';
+    }, 1000);
     
   } catch (error) {
     console.error('Capture failed:', error);
