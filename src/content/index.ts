@@ -463,25 +463,22 @@ const checkForPendingPaste = async () => {
     if (hasRunAutoPaste) return;
     
     const data = await chrome.storage.local.get('navilens_pending_paste');
-    const pending = data.navilens_pending_paste as { platform: string, timestamp: number } | undefined;
+    const pending = data.navilens_pending_paste as { platform: string, timestamp: number, imageUri?: string } | undefined;
 
     if (pending && (Date.now() - pending.timestamp < 15000)) { 
-        // Claim execution immediately
         hasRunAutoPaste = true;
-        
         console.log('[NaviLens] Found pending paste task for:', pending.platform);
         
-        // Clear storage to prevent other tabs/reloads from running it
         await chrome.storage.local.remove('navilens_pending_paste');
 
         if (window.location.host.includes('gemini.google.com') || window.location.host.includes('chatgpt.com')) {
-            attemptAutoPaste(pending.platform);
+            // Pass the image data if available
+            attemptAutoPaste(pending.platform, pending.imageUri);
         }
     }
 };
 
-const attemptAutoPaste = async (platform: string) => {
-    // Wait for input to appear
+const attemptAutoPaste = async (platform: string, imageUri?: string) => {
     const selector = platform === 'Gemini' ? 'div[contenteditable="true"]' : '#prompt-textarea';
     const input = await waitForElement(selector);
 
@@ -489,17 +486,49 @@ const attemptAutoPaste = async (platform: string) => {
         console.log('[NaviLens] Target input found. Focusing...');
         (input as HTMLElement).focus();
         
-        // Wait 800ms for the app to settle/hydrate (Helps avoid "blocked" states)
         await new Promise(r => setTimeout(r, 800));
 
-        console.log('[NaviLens] Triggering single paste attempt...');
-        try {
-            // Single, atomic attempt
-            document.execCommand('paste');
-        } catch (e) {
-            // Silent catch to avoid console noise
+        console.log('[NaviLens] Triggering synthetic paste...');
+        
+        if (imageUri) {
+            try {
+                // 1. Synthetic Event with Data (The Magic Fix)
+                const blob = dataURItoBlob(imageUri);
+                const file = new File([blob], "screenshot.png", { type: 'image/png' });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+
+                const pasteEvent = new ClipboardEvent('paste', {
+                    bubbles: true,
+                    cancelable: true,
+                    clipboardData: dataTransfer
+                });
+
+                input.dispatchEvent(pasteEvent);
+                console.log('[NaviLens] Synthetic paste event dispatched!');
+                return; // Success (hopefully)
+            } catch (e) {
+                console.error('[NaviLens] Synthetic paste failed:', e);
+            }
         }
+
+        // 2. Fallback to standard execCommand
+        try {
+            document.execCommand('paste');
+        } catch (e) {}
     }
+};
+
+// Helper for Blob conversion (Needed in content script context)
+const dataURItoBlob = (dataURI: string) => {
+    const byteString = atob(dataURI.split(',')[1]);
+    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], {type: mimeString});
 };
 
 const waitForElement = (selector: string): Promise<Element | null> => {

@@ -36,12 +36,13 @@ const CaptureResult = () => {
           // 1. ALWAYS Copy Image First (Await it!)
           await performCopy(platform);
 
-          // 2. Set "Pending Paste" flag for the content script to pick up
+          // 2. Set "Pending Paste" flag WITH DATA for the content script
           if (platform === 'Gemini' || platform === 'ChatGPT') {
               await chrome.storage.local.set({ 
                   'navilens_pending_paste': {
                       platform: platform,
-                      timestamp: Date.now()
+                      timestamp: Date.now(),
+                      imageUri: imageUri // Pass data for synthetic event
                   }
               });
           }
