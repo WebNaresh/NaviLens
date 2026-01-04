@@ -202,18 +202,50 @@ const performScrollCapture = async () => {
         const isPDF = document.contentType === 'application/pdf';
         
         // If content is PDF, we cannot scroll it using DOM.
-        // Solution: Pass the URL to the Capture Page to render it using PDF.js
+        // Solution: Fetch data HERE (Content Script has access) and pass to Renderer
         if (isPDF) {
-             showLoading("PDF Detected...<br><span style='font-size: 12px; color: #94a3b8;'>Passing to PDF Renderer...</span>");
+             showLoading("PDF Detected...<br><span style='font-size: 12px; color: #94a3b8;'>Reading file data...</span>");
              
-             await chrome.storage.local.set({ 
-                'navilens_target_pdf': {
-                    url: window.location.href,
-                    timestamp: Date.now()
-                }
-            });
-            
-            await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+             try {
+                 const response = await fetch(window.location.href);
+                 const blob = await response.blob();
+                 
+                 // Check size (Limit ~9MB for Chrome Storage Local safely, ideally <5MB but let's try)
+                 if (blob.size > 9 * 1024 * 1024) {
+                     showError("PDF is too large to capture directly (>9MB). Download it to view.");
+                     return;
+                 }
+
+                 const reader = new FileReader();
+                 reader.onloadend = async () => {
+                     const base64data = reader.result as string;
+                     
+                     await chrome.storage.local.set({ 
+                        'navilens_target_pdf': {
+                            dataUri: base64data, // Pass DATA, not URL
+                            timestamp: Date.now()
+                        }
+                    });
+                    
+                    await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+                    
+                    // Close panel
+                    const panel = document.getElementById('navilens-panel');
+                    if(panel) panel.style.display = 'none';
+                 };
+                 reader.readAsDataURL(blob);
+
+             } catch (err) {
+                 console.error('PDF Read Failed:', err);
+                 // Fallback to URL method (might work for http, fail for file)
+                 await chrome.storage.local.set({ 
+                    'navilens_target_pdf': {
+                        url: window.location.href,
+                        timestamp: Date.now()
+                    }
+                });
+                await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+             }
             return; 
         }
 

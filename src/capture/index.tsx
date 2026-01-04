@@ -399,16 +399,18 @@ const CaptureResult = () => {
   useEffect(() => {
     const checkPDF = async () => {
         const result = await chrome.storage.local.get('navilens_target_pdf');
-        const pdfData = result.navilens_target_pdf as { url: string } | undefined;
+        const pdfData = result.navilens_target_pdf as { url?: string, dataUri?: string } | undefined;
         
-        if (pdfData && pdfData.url) {
+        if (pdfData && (pdfData.dataUri || pdfData.url)) {
             setToast('Rendering PDF Document...');
             try {
                 // Dynamic import to avoid build weighting if unused
                 const pdfjsLib = await import('pdfjs-dist');
                 pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('pdf.worker.min.mjs');
 
-                const loadingTask = pdfjsLib.getDocument(pdfData.url);
+                // Load from Data URI (Text) or URL
+                const source = pdfData.dataUri ? pdfData.dataUri : pdfData.url!;
+                const loadingTask = pdfjsLib.getDocument(source);
                 const pdf = await loadingTask.promise;
                 
                 const numPages = pdf.numPages;
