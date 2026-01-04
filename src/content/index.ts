@@ -245,6 +245,10 @@ const performScrollCapture = async () => {
                     }
                 });
                 await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+                
+                // Close panel (Cleanup for fallback path)
+                const panel = document.getElementById('navilens-panel');
+                if(panel) panel.style.display = 'none';
              }
             return; 
         }
