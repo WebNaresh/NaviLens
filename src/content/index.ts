@@ -353,7 +353,8 @@ const dataURItoBlob = (dataURI: string) => {
     return new Blob([ab], { type: mimeString });
 };
 
-const waitForElement = (selector: string, timeout = 5000): Promise<Element | null> => {
+
+const waitForElement = (selector: string, timeout = 30000): Promise<Element | null> => {
     return new Promise(resolve => {
         if (document.querySelector(selector)) {
             return resolve(document.querySelector(selector));
@@ -378,14 +379,18 @@ const waitForElement = (selector: string, timeout = 5000): Promise<Element | nul
     });
 };
 
-
-
 const attemptAutoPaste = async (imageUri: string) => {
     try {
         const blob = dataURItoBlob(imageUri);
-        const item = new ClipboardItem({ [blob.type]: blob });
-        await navigator.clipboard.write([item]);
-        console.log('[Content] Image copied to clipboard!');
+        
+        // Attempt to write to clipboard, but don't fail the whole process if it's blocked
+        try {
+            const item = new ClipboardItem({ [blob.type]: blob });
+            await navigator.clipboard.write([item]);
+            console.log('[Content] Image copied to clipboard!');
+        } catch (clipboardError) {
+            console.warn('[Content] Clipboard write failed (likely permission issue), proceeding with synthetic events:', clipboardError);
+        }
 
         if (window.location.href.includes('chatgpt')) {
             // ChatGPT Strategy: Simulate Drag and Drop
@@ -418,6 +423,8 @@ const attemptAutoPaste = async (imageUri: string) => {
                     await new Promise(r => setTimeout(r, 50));
                 }
                 console.log('[Content] Dispatched synthetic DROP event for ChatGPT');
+            } else {
+                 console.log('[Content] ChatGPT input element not found after timeout');
             }
         } else {
             // Default Strategy (Gemini/Claude): Synthetic Paste
@@ -471,6 +478,7 @@ const attemptAutoPaste = async (imageUri: string) => {
         console.error('[Content] Auto-paste failed:', e);
     }
 };
+
 
 
 
