@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Camera, MousePointerClick } from 'lucide-react';
+import { Camera } from 'lucide-react';
 
 function App() {
   const handleFullPageCapture = async () => {
@@ -18,13 +18,6 @@ function App() {
     }
   };
 
-  const handleComponentSelect = async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab.id) {
-      window.close();
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SELECTION' });
-    }
-  };
 
   return (
     <div className="w-[350px] min-h-[300px] bg-background font-sans p-4">
@@ -39,44 +32,19 @@ function App() {
         <Separator className="mb-6" />
 
         <CardContent className="px-0 space-y-6">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-3">
             <Button 
               variant="outline" 
-              className="h-24 flex flex-col gap-2 hover:border-indigo-500 hover:text-indigo-600 transition-all"
+              className="h-24 flex flex-col gap-2 hover:border-indigo-500 hover:text-indigo-600 transition-all w-full"
               onClick={handleFullPageCapture}
             >
-              <Camera className="h-6 w-6" />
+              <Camera className="h-8 w-8" />
               <div className="flex flex-col items-center">
-                <span className="text-xs font-medium">Full Page</span>
-                <span className="text-[9px] text-muted-foreground">Internal</span>
-              </div>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="h-24 flex flex-col gap-2 hover:border-indigo-500 hover:text-indigo-600 transition-all"
-              onClick={async () => {
-                  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                  if (tab.id) {
-                    window.close();
-                    await chrome.tabs.sendMessage(tab.id, { type: 'CAPTURE_TO_GEMINI' });
-                  }
-              }}
-            >
-              <span className="text-xl">✨</span>
-              <div className="flex flex-col items-center">
-                <span className="text-xs font-medium">Capture & Share</span>
-                <span className="text-[9px] text-muted-foreground">Web Paste</span>
+                <span className="text-sm font-medium">Capture Full Page</span>
+                <span className="text-[10px] text-muted-foreground">Scans entire page content</span>
               </div>
             </Button>
           </div>
-          <Button 
-              variant="outline" 
-              className="w-full h-12 flex gap-2 hover:border-indigo-500 hover:text-indigo-600 transition-all"
-              onClick={handleComponentSelect}
-          >
-            <MousePointerClick className="h-4 w-4" />
-            <span className="text-sm font-medium">Select Component</span>
-          </Button>
         </CardContent>
 
         <CardFooter className="px-0 pt-2 flex justify-center">
