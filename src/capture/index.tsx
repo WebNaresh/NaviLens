@@ -395,14 +395,94 @@ const CaptureResult = () => {
        }
   };
 
+  // --- PDF Rendering Logic ---
   useEffect(() => {
-    // Load captured data
+    const checkPDF = async () => {
+        const result = await chrome.storage.local.get('navilens_target_pdf');
+        const pdfData = result.navilens_target_pdf as { url: string } | undefined;
+        
+        if (pdfData && pdfData.url) {
+            setToast('Rendering PDF Document...');
+            try {
+                // Dynamic import to avoid build weighting if unused
+                const pdfjsLib = await import('pdfjs-dist');
+                pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('pdf.worker.min.mjs');
+
+                const loadingTask = pdfjsLib.getDocument(pdfData.url);
+                const pdf = await loadingTask.promise;
+                
+                const numPages = pdf.numPages;
+                const canvasPages: HTMLCanvasElement[] = [];
+                let totalHeight = 0;
+                let maxWidth = 0;
+
+                for (let i = 1; i <= numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({ scale: 1.5 }); // 1.5x scale
+                    
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    const renderContext = {
+                        canvasContext: context!,
+                        viewport: viewport
+                    };
+                    // @ts-ignore: Type definition mismatch in some versions
+                    await page.render(renderContext).promise;
+                    
+                    canvasPages.push(canvas);
+                    totalHeight += canvas.height;
+                    maxWidth = Math.max(maxWidth, canvas.width);
+                }
+
+                // Stitch
+                const finalCanvas = document.createElement('canvas');
+                finalCanvas.width = maxWidth;
+                finalCanvas.height = totalHeight;
+                const ctx = finalCanvas.getContext('2d');
+                
+                let yOffset = 0;
+                for (const pCanvas of canvasPages) {
+                    ctx?.drawImage(pCanvas, 0, yOffset);
+                    yOffset += pCanvas.height;
+                }
+
+                // Save as JPEG
+                const finalUri = finalCanvas.toDataURL('image/jpeg', 0.85);
+                setImageUri(finalUri);
+                setToast('PDF Capture Complete');
+
+                // Cleanup
+                await chrome.storage.local.remove('navilens_target_pdf');
+
+            } catch (err) {
+                console.error('PDF Rendering Failed:', err);
+                setError('Failed to render PDF. It might be password protected or local file access is denied.');
+                // Fallback: Check if we have a current_capture (maybe visible part was valid?)
+                // But normally we want to fail gracefully.
+            }
+        }
+    };
+    
+    checkPDF();
+
+    // Load captured data (Standard Logic)
     chrome.storage.local.get('navilens_current_capture', async (result) => {
       const data = result['navilens_current_capture'] as CaptureData | undefined;
+      // Only set if we didn't just render a PDF (priority)
+      // Actually simpler: checkPDF handles its key. standard handles its key.
       if (data && data.imageUri) {
-        setImageUri(data.imageUri);
+         // Check if we are ALREADY rendering PDF? No, async race.
+         // We should verify if 'navilens_target_pdf' exists first.
+         const pdfRes = await chrome.storage.local.get('navilens_target_pdf');
+         if (!pdfRes.navilens_target_pdf) {
+             setImageUri(data.imageUri);
+         }
       }
     });
+
   }, []);
 
   // Update Crop Visuals to match the scaled canvas

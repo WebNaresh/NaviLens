@@ -201,24 +201,20 @@ const performScrollCapture = async () => {
         // Handle PDF Viewer Edge Case (Plugin hides real height)
         const isPDF = document.contentType === 'application/pdf';
         
-        // If content is PDF and height reports as 1 page (Plugin Mode), we cannot scroll it.
-        // Fallback to visible capture only.
-        if (isPDF && fullHeight <= viewportHeight + 100) {
-             showLoading("PDF Viewer detected.<br><span style='font-size: 12px; color: #f59e0b;'>Scrolling automation is blocked by Chrome.<br>Capturing visible area only.</span>");
-             await new Promise(r => setTimeout(r, 2000)); // Show toast
+        // If content is PDF, we cannot scroll it using DOM.
+        // Solution: Pass the URL to the Capture Page to render it using PDF.js
+        if (isPDF) {
+             showLoading("PDF Detected...<br><span style='font-size: 12px; color: #94a3b8;'>Passing to PDF Renderer...</span>");
              
-             // Capture once
-             const response = await chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
-             if (response.success) {
-                 await chrome.storage.local.set({ 
-                    'navilens_current_capture': {
-                        imageUri: response.dataUrl,
-                        timestamp: Date.now()
-                    }
-                });
-                await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
-                return; // Exit
-             }
+             await chrome.storage.local.set({ 
+                'navilens_target_pdf': {
+                    url: window.location.href,
+                    timestamp: Date.now()
+                }
+            });
+            
+            await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+            return; 
         }
 
         // Handle high DPI
