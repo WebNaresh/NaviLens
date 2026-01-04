@@ -51,7 +51,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'OPEN_ANTIGRAVITY_TAB') {
-    // Attempt to open via hidden iframe in the active tab (less intrusive, often works better)
+    // Try 'cursor://' (common AI editor substitute) if antigravity:// failed
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const activeTab = tabs[0];
         if (activeTab?.id) {
@@ -60,14 +60,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 func: () => {
                     const iframe = document.createElement('iframe');
                     iframe.style.display = 'none';
-                    iframe.src = 'antigravity://';
+                    iframe.src = 'cursor://'; // Try Cursor
                     document.body.appendChild(iframe);
                     setTimeout(() => iframe.remove(), 1000);
                 }
             });
-        } else {
-             // Fallback if no active tab (e.g. background only), just create a tab
-             chrome.tabs.create({ url: 'antigravity://' });
         }
     });
     sendResponse({ success: true });
@@ -75,7 +72,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'OPEN_VSCODE') {
-    chrome.tabs.create({ url: 'vscode://' });
+    // Force a path to wake it up
+    chrome.tabs.create({ url: 'vscode://file/' });
     sendResponse({ success: true });
     return true;
   }
