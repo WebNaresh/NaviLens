@@ -555,11 +555,21 @@ const init = () => {
     }
 };
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+
+// "Dead Start" Strategy: Wait for window load + 4 seconds buffer
+// This ensures we are completely inert during Cloudflare's initial fingerprinting
+const deadStart = () => {
+    setTimeout(() => {
+        init();
+    }, 4000); 
+};
+
+if (document.readyState === 'complete') {
+    deadStart();
 } else {
-    init();
+    window.addEventListener('load', deadStart);
 }
+
 
 
 
