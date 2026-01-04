@@ -577,7 +577,7 @@ const init = () => {
 const deadStart = () => {
     setTimeout(() => {
         init();
-    }, 4000); 
+    }, 500); 
 };
 
 if (document.readyState === 'complete') {
