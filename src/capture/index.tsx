@@ -629,9 +629,22 @@ const CaptureResult = () => {
                 
                 <button
                     onClick={() => {
-                        setIsCropActive(!isCropActive);
+                        const newActive = !isCropActive;
+                        setIsCropActive(newActive);
                         setIsPenActive(false);
-                        if (!isCropActive) {
+                        
+                        // Initialize default crop box if activating
+                        if (newActive && canvasRef.current) {
+                            const canvas = canvasRef.current;
+                            const w = canvas.width;
+                            const h = canvas.height;
+                            const marginX = w * 0.1;
+                            const marginY = h * 0.1;
+                            
+                            setCropStart({ x: marginX, y: marginY });
+                            setCropEnd({ x: w - marginX, y: h - marginY });
+                            setToast("Adjust selection and click Apply");
+                        } else {
                             setCropStart(null);
                             setCropEnd(null);
                         }
