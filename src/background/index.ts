@@ -50,26 +50,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message.type === 'OPEN_ANTIGRAVITY_TAB') {
-    // Navigate current tab to cursor:// (often works better than iframes for focus)
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) {
-            chrome.tabs.update(tabs[0].id, { url: 'cursor://file/C:/' });
-        }
-    });
-    sendResponse({ success: true });
-    return true;
-  }
-
-  if (message.type === 'OPEN_VSCODE') {
-    // Navigate current tab to vscode://
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) {
-            chrome.tabs.update(tabs[0].id, { url: 'vscode://file/C:/' });
-        }
-    });
-    sendResponse({ success: true });
-    return true;
-  }
+  // Removed unused protocol handlers
 });
 

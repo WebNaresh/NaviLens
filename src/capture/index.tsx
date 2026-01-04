@@ -482,7 +482,7 @@ const CaptureResult = () => {
                  <div className="h-8 w-px bg-gray-300 mx-1"></div>
 
                  {/* Share buttons */}
-                 <ShareButton 
+                <ShareButton 
                     label="Gemini" 
                     icon={<svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41C17.92 5.77 20 8.65 20 12c0 2.08-.81 3.98-2.11 5.4l-.99-.01z"/></svg>}
                     onClick={() => handleShare('Gemini', 'OPEN_GEMINI_TAB')}
@@ -491,16 +491,6 @@ const CaptureResult = () => {
                     label="ChatGPT" 
                     icon={<svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>} 
                     onClick={() => handleShare('ChatGPT', 'OPEN_CHATGPT_TAB')}
-                />
-                <ShareButton 
-                    label="VS Code" 
-                    icon={<svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>} 
-                    onClick={() => handleShare('VS Code', 'OPEN_VSCODE')}
-                />
-                <ShareButton 
-                    label="Antigravity" 
-                    icon={<svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>} 
-                    onClick={() => handleShare('Antigravity', 'OPEN_ANTIGRAVITY_TAB')}
                 />
             </div>
         </div>
