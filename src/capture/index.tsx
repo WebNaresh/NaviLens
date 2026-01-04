@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
+import { jsPDF } from 'jspdf';
 import '../index.css';
-
-
-
 
 interface CaptureData {
   imageUri: string;
   timestamp: number;
 }
-
-
 
 const ShareButton = ({ label, icon, onClick }: { label: string, icon: React.ReactNode, onClick: () => void }) => (
     <button 
@@ -269,6 +265,34 @@ const CaptureResult = () => {
       }
   };
 
+  const handleDownloadPDF = async () => {
+       if (!imageUri) return;
+       setToast('Generating PDF...');
+       
+       try {
+           const finalUri = await getMergedImageUri();
+           const img = new Image();
+           img.src = finalUri;
+           
+           img.onload = () => {
+               const pdf = new jsPDF({
+                   orientation: img.width > img.height ? 'l' : 'p',
+                   unit: 'px',
+                   format: [img.width, img.height]
+               });
+               
+               pdf.addImage(finalUri, 'PNG', 0, 0, img.width, img.height);
+               pdf.save('capture.pdf');
+               setToast('PDF Downloaded!');
+               setTimeout(() => setToast(null), 2000);
+           };
+           
+       } catch (err) {
+           console.error('PDF generation failed', err);
+           setError('Failed to generate PDF');
+       }
+  };
+
   const handleShare = async (platform: string, messageType?: string) => {
       if (!imageUri) {
           setError("No image to share");
@@ -446,10 +470,19 @@ const CaptureResult = () => {
                      <span>Copy</span>
                  </button>
 
+                 <button
+                    onClick={handleDownloadPDF}
+                    className="flex items-center gap-2 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition shadow-sm"
+                    title="Download as PDF"
+                 >
+                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                     <span>PDF</span>
+                 </button>
+
                  <div className="h-8 w-px bg-gray-300 mx-1"></div>
 
                  {/* Share buttons */}
-                <ShareButton 
+                 <ShareButton 
                     label="Gemini" 
                     icon={<svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41C17.92 5.77 20 8.65 20 12c0 2.08-.81 3.98-2.11 5.4l-.99-.01z"/></svg>}
                     onClick={() => handleShare('Gemini', 'OPEN_GEMINI_TAB')}
