@@ -359,11 +359,11 @@ const CaptureResult = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center py-12">
-      <div className="w-full max-w-4xl bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center py-6">
+      <div className="w-full max-w-[95%] bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200 flex flex-col h-[90vh]">
         
         {/* Header with Drawing Toolbar */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4 flex flex-wrap justify-between items-center sticky top-0 z-10 gap-4">
+        <div className="bg-white border-b border-gray-200 px-6 py-4 flex flex-wrap justify-between items-center sticky top-0 z-10 gap-4 shrink-0">
           <div className="flex items-center gap-3">
              <div className="bg-indigo-600 rounded-lg p-2">
                  {/* Logo Icon */}
@@ -504,13 +504,13 @@ const CaptureResult = () => {
         )}
 
 
-        <div className="flex flex-col items-center justify-center p-8 bg-gray-50 min-h-[500px]">
+        <div className="flex-1 overflow-auto bg-gray-100 flex items-center justify-center p-4">
            {error && (
               <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
                   <span className="block sm:inline">{error}</span>
               </div>
            )}
-           <div className="relative shadow-sm border border-gray-200 rounded-lg overflow-hidden group">
+           <div className="relative shadow-lg border border-gray-300 bg-white inline-block max-w-full max-h-full">
                {imageUri ? (
                   <>
                   <img 
