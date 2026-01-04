@@ -360,20 +360,16 @@ const waitForElement = (selector: string, timeout = 30000): Promise<Element | nu
             return resolve(document.querySelector(selector));
         }
 
-        const observer = new MutationObserver((_mutations) => {
+        // Use polling instead of MutationObserver to be less intrusive (Cloudflare stealth)
+        const checkInterval = setInterval(() => {
             if (document.querySelector(selector)) {
-                observer.disconnect();
+                clearInterval(checkInterval);
                 resolve(document.querySelector(selector));
             }
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
+        }, 1000);
 
         setTimeout(() => {
-            observer.disconnect();
+            clearInterval(checkInterval);
             resolve(null);
         }, timeout);
     });
@@ -524,8 +520,10 @@ const attemptAutoPaste = async (imageUri: string) => {
 
 
 
-// Check on load
-checkForPendingPaste();
+// Check on load with a slight delay to be less intrusive
+setTimeout(() => {
+    checkForPendingPaste();
+}, 2000);
 
 console.log('NaviLens Content Script V1 Loaded');
 
