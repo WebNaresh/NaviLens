@@ -321,19 +321,39 @@ const checkForPendingPaste = async () => {
         
         if (!navilens_current_capture || !navilens_current_capture.imageUri || !navilens_current_capture.timestamp) return;
 
-        // Check if this is a target specific URL (Gemini or ChatGPT)
         const isGemini = window.location.href.includes('gemini.google.com');
         const isChatGPT = window.location.href.includes('chatgpt.com');
         const isClaude = window.location.href.includes('claude.ai');
 
-        if (isGemini || isChatGPT || isClaude) {
-             // Check timestamp to avoid pasting old captures? 
-             // Ideally we might clear storage after paste, but keeping it allows re-paste.
-             // We could check if the capture was recent (< 1 min).
+        if (isGemini || isClaude) {
+            const now = Date.now();
+            if (now - navilens_current_capture.timestamp < 60000) { 
+                console.log('[Content] Detected recent capture, attempting auto-paste...');
+                attemptAutoPaste(navilens_current_capture.imageUri);
+            }
+        } else if (isChatGPT) {
+             // Ghost Mode for ChatGPT: Silent check
              const now = Date.now();
-             if (now - navilens_current_capture.timestamp < 60000) { // 1 minute window
-                 console.log('[Content] Detected recent capture, attempting auto-paste...');
-                 attemptAutoPaste(navilens_current_capture.imageUri);
+             if (now - navilens_current_capture.timestamp < 60000) {
+                 const checkAndPaste = () => {
+                     const input = document.querySelector('#prompt-textarea');
+                     if (input) {
+                         // Only log once we found it
+                         console.log('[Content] Ghost Mode: Target found, initializing paste...');
+                         attemptAutoPaste(navilens_current_capture.imageUri!);
+                         return true;
+                     }
+                     return false;
+                 };
+
+                 if (!checkAndPaste()) {
+                     // Silent Polling - No logs
+                     const ghostInterval = setInterval(() => {
+                         if (checkAndPaste()) {
+                             clearInterval(ghostInterval);
+                         }
+                     }, 2000);
+                 }
              }
         }
     } catch (e) {
@@ -398,74 +418,54 @@ const attemptAutoPaste = async (imageUri: string) => {
         const blob = dataURItoBlob(imageUri);
         
         if (window.location.href.includes('chatgpt')) {
-            // --- ChatGPT Specific Strategy ---
-            console.log('[Content] Detected ChatGPT. Entering "Smart Wait" mode for Cloudflare...');
-            
-            // 1. Wait for the actual chat input (up to 2 minutes)
-            // This prevents running on the Cloudflare verification page
+
+            // --- ChatGPT Logic (Simplified) ---
+            // Note: We are guaranteed to have the input here because checkForPendingPaste waited for it.
             const inputSelector = '#prompt-textarea';
-            const inputEl = await waitForElement(inputSelector, 120000) as HTMLElement;
+            const inputEl = document.querySelector(inputSelector) as HTMLElement; 
             
-            if (!inputEl) {
-                console.log('[Content] ChatGPT input not found after 2 minutes. Aborting auto-paste.');
-                return;
-            }
+            if (inputEl) {
+                console.log('[Content] Ghost Mode: Target verified. Executing paste sequence.');
 
-            console.log('[Content] ChatGPT input found! Proceeding with paste sequence.');
+                 // 2. Attempt Clipboard Write
+                try {
+                    const item = new ClipboardItem({ [blob.type]: blob });
+                    await navigator.clipboard.write([item]);
+                    console.log('[Content] Image copied to clipboard!');
+                } catch (clipboardError) {
+                    console.warn('[Content] Clipboard write failed, proceeding with synthetic drop:', clipboardError);
+                }
 
-            // 2. Attempt Clipboard Write (Safe to do now that we are on the actual app)
-            try {
-                const item = new ClipboardItem({ [blob.type]: blob });
-                await navigator.clipboard.write([item]);
-                console.log('[Content] Image copied to clipboard!');
-            } catch (clipboardError) {
-                console.warn('[Content] Clipboard write failed, proceeding with synthetic drop:', clipboardError);
-            }
+                // 3. Short Stabilization (2s) just to be safe for hydration
+                await new Promise(r => setTimeout(r, 2000));
 
-            // 3. Stabilization Delay (10s) with visible countdown
-            const waitToast = document.createElement('div');
-            waitToast.style.position = 'fixed';
-            waitToast.style.bottom = '20px';
-            waitToast.style.left = '50%';
-            waitToast.style.transform = 'translateX(-50%)';
-            waitToast.style.backgroundColor = '#3b82f6'; // Blue
-            waitToast.style.color = '#fff';
-            waitToast.style.padding = '8px 16px';
-            waitToast.style.borderRadius = '8px';
-            waitToast.style.zIndex = '999999';
-            waitToast.style.fontFamily = 'system-ui';
-            waitToast.style.fontSize = '12px';
-            document.body.appendChild(waitToast);
-
-            for (let i = 10; i > 0; i--) {
-                waitToast.textContent = `Waiting for Cloudflare protection... ${i}s`;
-                await new Promise(r => setTimeout(r, 1000));
-            }
-            waitToast.remove();
-
-            // 4. Simulate Drag and Drop
-            const file = new File([blob], "screenshot.png", { type: blob.type });
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            Object.defineProperty(dataTransfer, "files", {
-                get: () => [file]
-            });
-
-            const events = ['dragenter', 'dragover', 'drop'];
-            for (const type of events) {
-                const event = new DragEvent(type, {
-                    bubbles: true,
-                    cancelable: true,
-                    dataTransfer: dataTransfer,
-                    // @ts-ignore
-                    clientX: inputEl.getBoundingClientRect().left + 10,
-                    clientY: inputEl.getBoundingClientRect().top + 10,
-                    view: window
+                // 4. Simulate Drag and Drop
+                const file = new File([blob], "screenshot.png", { type: blob.type });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                Object.defineProperty(dataTransfer, "files", {
+                    get: () => [file]
                 });
-                inputEl.dispatchEvent(event);
-                await new Promise(r => setTimeout(r, 50));
+
+                const events = ['dragenter', 'dragover', 'drop'];
+                for (const type of events) {
+                    const event = new DragEvent(type, {
+                        bubbles: true,
+                        cancelable: true,
+                        dataTransfer: dataTransfer,
+                        // @ts-ignore
+                        clientX: inputEl.getBoundingClientRect().left + 10,
+                        clientY: inputEl.getBoundingClientRect().top + 10,
+                        view: window
+                    });
+                    inputEl.dispatchEvent(event);
+                    await new Promise(r => setTimeout(r, 50));
+                }
+                console.log('[Content] Dispatched synthetic DROP event for ChatGPT');
+            } else {
+                console.log('[Content] ChatGPT input lost during handoff? Aborting.');
             }
-            console.log('[Content] Dispatched synthetic DROP event for ChatGPT');
+
 
         } else {
             // --- Default Strategy (Gemini/Claude) ---
@@ -537,10 +537,8 @@ const attemptAutoPaste = async (imageUri: string) => {
 
 
 
-// Check on load with a larger delay to be less intrusive
-setTimeout(() => {
-    checkForPendingPaste();
-}, 4000);
+// Check on load immediately (Ghost mode handles silence)
+checkForPendingPaste();
 
 console.log('NaviLens Content Script V1 Loaded');
 
