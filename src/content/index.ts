@@ -510,6 +510,7 @@ const attemptAutoPaste = async (imageUri: string) => {
             }
         }
 
+
         // Always show the backup toast
         const toast = document.createElement('div');
         toast.textContent = 'Image Ready! (Press Ctrl+V if not pasted)';
@@ -528,7 +529,12 @@ const attemptAutoPaste = async (imageUri: string) => {
         
         setTimeout(() => toast.remove(), 4000);
 
+        // CONSUME the capture so it doesn't trigger again on reload (Cloudflare protection)
+        await chrome.storage.local.remove('navilens_current_capture');
+        console.log('[Content] Capture consumed. Will not auto-paste on reload.');
+
     } catch (e) {
+
         console.error('[Content] Auto-paste failed:', e);
     }
 };
