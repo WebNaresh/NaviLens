@@ -297,12 +297,8 @@ const CaptureResult = () => {
 
           setToast(`Image Copied! Opening ${platform}...`);
           
-          // 3. Launch App
-          if (messageType === 'OPEN_VSCODE') {
-               window.location.href = 'vscode://';
-          } else if (messageType === 'OPEN_ANTIGRAVITY_TAB') {
-               window.location.href = 'antigravity://';
-          } else if (messageType) {
+          // 3. Launch App via Background Script (more reliable for custom protocols)
+          if (messageType) {
                chrome.runtime.sendMessage({ type: messageType });
           }
           
