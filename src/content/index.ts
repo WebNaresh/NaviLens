@@ -347,12 +347,7 @@ const checkForPendingPaste = async () => {
                  };
 
                  if (!checkAndPaste()) {
-                     // Silent Polling - No logs
-                     const ghostInterval = setInterval(() => {
-                         if (checkAndPaste()) {
-                             clearInterval(ghostInterval);
-                         }
-                     }, 2000);
+                     console.log('[Content] Ghost Mode: Input not found immediately. Aborting to stay stealthy.');
                  }
              }
         }
