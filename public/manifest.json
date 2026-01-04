@@ -12,9 +12,7 @@
   "host_permissions": [
     "*://*/*"
   ],
-  "action": {
-    "default_popup": "index.html"
-  },
+  "action": {},
   "background": {
     "service_worker": "assets/background.js",
     "type": "module"
