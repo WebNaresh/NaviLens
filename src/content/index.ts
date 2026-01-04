@@ -1,16 +1,4 @@
-import html2canvas from 'html2canvas';
 
-interface SelectionState {
-  active: boolean;
-  hoveredElement: HTMLElement | null;
-}
-
-const state: SelectionState = {
-  active: false,
-  hoveredElement: null,
-};
-
-// --- Styles for the highlighter ---
 // --- Styles for the highlighter ---
 let overlay: HTMLElement | null = null;
 
@@ -140,106 +128,9 @@ const showError = (error: string, imageUri?: string) => {
   panel.style.display = 'block';
 };
 
-// --- Capture & Analysis ---
-
-
-const captureElement = async (element: HTMLElement) => {
-  try {
-    // 1. UI Feedback
-    showLoading("Capturing component...<br><span style='font-size: 12px; color: #94a3b8;'>Rendering element</span>");
-    
-    // Hide overlay for clean capture
-    const overlay = createOverlay();
-    overlay.style.display = 'none';
-    
-    // Give UI a moment to update
-    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
-
-    const canvas = await html2canvas(element, {
-      useCORS: true,
-      logging: false,
-      allowTaint: true,
-      backgroundColor: null, // Transparent background if possible
-      scale: window.devicePixelRatio // Better quality
-    });
-    
-    const imageUri = canvas.toDataURL('image/png');
-    
-    // 2. Save to storage
-    await chrome.storage.local.set({ 
-        'navilens_current_capture': {
-            imageUri: imageUri,
-            timestamp: Date.now()
-        }
-    });
-
-    showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
-
-    // 3. Open Result Tab
-    await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
-    
-    // Close panel
-    setTimeout(() => {
-        const panel = document.getElementById('navilens-panel');
-        if (panel) panel.style.display = 'none';
-    }, 1000);
-    
-  } catch (error) {
-    console.error('Capture failed:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    showError(`Failed to capture: ${errorMessage}`);
-  }
-};
-
-// --- Event Handlers ---
-
-const handleMouseMove = (e: MouseEvent) => {
-  if (!state.active) return;
-  
-  const target = e.target as HTMLElement;
-  if (target === document.body || target === document.documentElement || target === overlay) return;
-  
-  state.hoveredElement = target;
-  
-  const rect = target.getBoundingClientRect();
-  const ov = createOverlay();
-  ov.style.top = `${rect.top}px`;
-  ov.style.left = `${rect.left}px`;
-  ov.style.width = `${rect.width}px`;
-  ov.style.height = `${rect.height}px`;
-  ov.style.display = 'block';
-};
-
-const handleClick = async (e: MouseEvent) => {
-  if (!state.active || !state.hoveredElement) return;
-  
-  e.preventDefault();
-  e.stopPropagation();
-  
-  const target = state.hoveredElement;
-  toggleSelection(false); 
-  
-  await captureElement(target);
-};
-
-const toggleSelection = (active: boolean) => {
-  state.active = active;
-  if (active) {
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('click', handleClick, true);
-    document.body.style.cursor = 'crosshair';
-  } else {
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('click', handleClick, true);
-    document.body.style.cursor = 'default';
-    if (overlay) overlay.style.display = 'none';
-    state.hoveredElement = null;
-  }
-};
-
 // --- Scroll Capture Helper ---
 
-const performScrollCapture = async (mode: 'internal' | 'clipboard') => {
+const performScrollCapture = async () => {
     try {
         const tempCanvas = document.createElement('canvas');
         const context = tempCanvas.getContext('2d');
@@ -379,46 +270,19 @@ const performScrollCapture = async (mode: 'internal' | 'clipboard') => {
         console.log('[Content] Stitching complete.');
         const finalImageUri = tempCanvas.toDataURL('image/png');
         
-        if (mode === 'internal') {
-            // Save to storage
-            await chrome.storage.local.set({ 
-                'navilens_current_capture': {
-                    imageUri: finalImageUri,
-                    timestamp: Date.now()
-                }
-            });
+        // Save to storage
+        await chrome.storage.local.set({ 
+            'navilens_current_capture': {
+                imageUri: finalImageUri,
+                timestamp: Date.now()
+            }
+        });
 
-            showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
+        showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
 
-            // Open Result Tab
-            await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
-            
-        } else if (mode === 'clipboard') {
-            // Clipboard mode
-            showLoading("Copying to clipboard...<br><span style='font-size: 12px; color: #94a3b8;'>Preparing for Gemini</span>");
-            
-            // Convert to blob for clipboard
-            tempCanvas.toBlob(async (blob) => {
-                if (!blob) {
-                    showError("Failed to create image blob.");
-                    return;
-                }
-                
-                try {
-                    const item = new ClipboardItem({ "image/png": blob });
-                    await navigator.clipboard.write([item]);
-                    
-                    showLoading("Copied! Opening Gemini...<br><span style='font-size: 12px; color: #94a3b8;'>Press Ctrl+V when it opens</span>");
-                    
-                    await new Promise(r => setTimeout(r, 1000));
-                    await chrome.runtime.sendMessage({ type: 'OPEN_GEMINI_TAB' });
-
-                } catch (err) {
-                    console.error('Clipboard write failed:', err);
-                    showError("Failed to copy to clipboard. Permission denied?");
-                }
-            });
-        }
+        // Open Result Tab
+        await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+        
         
         // Close panel after short delay
         setTimeout(() => {
@@ -436,139 +300,17 @@ const performScrollCapture = async (mode: 'internal' | 'clipboard') => {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   console.log('[Content] Message received:', message);
-  if (message.type === 'TOGGLE_SELECTION') {
-    toggleSelection(true);
-    sendResponse({ status: 'selection_active' });
-  } else if (message.type === 'CAPTURE_FULL_PAGE') {
+  if (message.type === 'CAPTURE_FULL_PAGE') {
     console.log('[Content] Starting Scroll & Stitch capture (Internal)...');
     showLoading("Initializing scroll capture...<br><span style='font-size: 12px; color: #94a3b8;'>Please do not interact with the page.</span>");
 
-    setTimeout(() => performScrollCapture('internal'), 100);
-    sendResponse({ status: 'capturing' });
-  } else if (message.type === 'CAPTURE_TO_GEMINI') {
-    console.log('[Content] Starting Scroll & Stitch capture (Clipboard)...');
-    showLoading("Initializing scroll capture...<br><span style='font-size: 12px; color: #94a3b8;'>Please do not interact with the page.</span>");
-
-    setTimeout(() => performScrollCapture('clipboard'), 100);
+    setTimeout(() => performScrollCapture(), 100);
     sendResponse({ status: 'capturing' });
   }
 });
 
 console.log('NaviLens Content Script V1 Loaded');
 
-// --- Auto-Paste Logic ---
-
-let hasRunAutoPaste = false;
-
-const checkForPendingPaste = async () => {
-    if (hasRunAutoPaste) return;
-    
-    const data = await chrome.storage.local.get('navilens_pending_paste');
-    const pending = data.navilens_pending_paste as { platform: string, timestamp: number, imageUri?: string } | undefined;
-
-    if (pending && (Date.now() - pending.timestamp < 15000)) { 
-        hasRunAutoPaste = true;
-        console.log('[NaviLens] Found pending paste task for:', pending.platform);
-        
-        await chrome.storage.local.remove('navilens_pending_paste');
-
-        if (window.location.host.includes('gemini.google.com') || window.location.host.includes('chatgpt.com')) {
-            // Pass the image data if available
-            attemptAutoPaste(pending.platform, pending.imageUri);
-        }
-    }
-};
-
-const attemptAutoPaste = async (platform: string, imageUri?: string) => {
-    const selector = platform === 'Gemini' ? 'div[contenteditable="true"]' : '#prompt-textarea';
-    const input = await waitForElement(selector);
-
-    if (input) {
-        console.log('[NaviLens] Target input found. Focusing...');
-        (input as HTMLElement).focus();
-        
-        await new Promise(r => setTimeout(r, 800));
-
-        console.log('[NaviLens] Triggering action...');
-        
-        // Gemini: Synthetic Paste works great!
-        if (platform === 'Gemini' && imageUri) {
-            try {
-                const blob = dataURItoBlob(imageUri);
-                // Gemini is happy with a standard PNG file
-                const file = new File([blob], "screenshot.png", { type: 'image/png' });
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
-
-                const pasteEvent = new ClipboardEvent('paste', {
-                    bubbles: true,
-                    cancelable: true,
-                    clipboardData: dataTransfer
-                });
-
-                input.dispatchEvent(pasteEvent);
-                console.log('[NaviLens] Synthetic paste event dispatched (Gemini)!');
-                return;
-            } catch (e) {
-                console.error('[NaviLens] Synthetic paste failed:', e);
-            }
-        }
-
-        // ChatGPT: Synthetic events trigger "Unable to upload" / 403 errors.
-        // Best approach is to just FOCUS and let user paste (Ctrl+V).
-        if (platform === 'ChatGPT') {
-             console.log('[NaviLens] ChatGPT detected: Skipped synthetic paste to avoid block. Input focused.');
-             // We already focused the input above, so we are done.
-             return;
-        }
-
-        // Fallback for others
-        try {
-            document.execCommand('paste');
-        } catch (e) {}
-    }
-};
-
-// Helper for Blob conversion (Needed in content script context)
-const dataURItoBlob = (dataURI: string) => {
-    const byteString = atob(dataURI.split(',')[1]);
-    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
-    }
-    return new Blob([ab], {type: mimeString});
-};
-
-const waitForElement = (selector: string): Promise<Element | null> => {
-    return new Promise(resolve => {
-        if (document.querySelector(selector)) {
-            return resolve(document.querySelector(selector));
-        }
-
-        const observer = new MutationObserver(() => {
-            if (document.querySelector(selector)) {
-                observer.disconnect();
-                resolve(document.querySelector(selector));
-            }
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-        
-        // Timeout after 10s
-        setTimeout(() => {
-            observer.disconnect();
-            resolve(null);
-        }, 10000);
-    });
-};
-
-// Check on load
-checkForPendingPaste();
 
 
 
