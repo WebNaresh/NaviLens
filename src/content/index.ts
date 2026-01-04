@@ -392,8 +392,8 @@ const waitForElement = (selector: string, timeout = 30000): Promise<Element | nu
                 // Checking too often here flags us as a bot
                 nextDelay = 5000; 
             } else {
-                // Randomize slightly to appear more human/less mechanical
-                nextDelay = 1000 + Math.random() * 1000; 
+                // Faster polling when safe (non-Cloudflare) to feel snappy
+                nextDelay = 300 + Math.random() * 400; 
             }
 
             setTimeout(check, nextDelay);
