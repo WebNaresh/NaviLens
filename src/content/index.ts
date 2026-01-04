@@ -378,6 +378,7 @@ const waitForElement = (selector: string, timeout = 5000): Promise<Element | nul
     });
 };
 
+
 const attemptAutoPaste = async (imageUri: string) => {
     try {
         const blob = dataURItoBlob(imageUri);
@@ -385,11 +386,10 @@ const attemptAutoPaste = async (imageUri: string) => {
         await navigator.clipboard.write([item]);
         console.log('[Content] Image copied to clipboard!');
 
-        // Try to focus the input area and paste
-        // Selectors might change, this is best-effort
-        let inputSelector = 'div[contenteditable="true"]'; // Generic rich text
+        // Try to focus the input area
+        let inputSelector = 'div[contenteditable="true"]'; 
         if (window.location.href.includes('gemini')) {
-             inputSelector = 'div[contenteditable="true"]'; // Gemini usually uses this
+             inputSelector = 'rich-textarea > div, div[contenteditable="true"]'; // More specific for Gemini
         } else if (window.location.href.includes('chatgpt')) {
              inputSelector = '#prompt-textarea'; 
         }
@@ -399,12 +399,27 @@ const attemptAutoPaste = async (imageUri: string) => {
             console.log('[Content] Found input element, focusing...', inputEl);
             inputEl.focus();
             
-            // Note: We cannot programmatically trigger 'paste' event with clipboard data due to security.
-            // But we have copied it to clipboard. 
-            // We can show a toast telling user to press "Ctrl+V".
+            // Dispatch synthetic paste event
+            try {
+                const file = new File([blob], "screenshot.png", { type: blob.type });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+
+                const pasteEvent = new ClipboardEvent('paste', {
+                    bubbles: true,
+                    cancelable: true,
+                    clipboardData: dataTransfer
+                });
+
+                inputEl.dispatchEvent(pasteEvent);
+                console.log('[Content] Dispatched synthetic paste event');
+            } catch (dispatchError) {
+                console.error('[Content] Failed to dispatch paste event:', dispatchError);
+            }
             
+            // Still show a toast as backup/confirmation
             const toast = document.createElement('div');
-            toast.textContent = 'Image Copied! Press Ctrl+V to paste.';
+            toast.textContent = 'Image Pasted! (If not, press Ctrl+V)';
             toast.style.position = 'fixed';
             toast.style.bottom = '20px';
             toast.style.left = '50%';
@@ -425,6 +440,7 @@ const attemptAutoPaste = async (imageUri: string) => {
         console.error('[Content] Auto-paste failed:', e);
     }
 };
+
 
 // Check on load
 checkForPendingPaste();
