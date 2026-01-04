@@ -51,7 +51,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'OPEN_ANTIGRAVITY_TAB') {
-    chrome.tabs.create({ url: 'antigravity://' });
+    chrome.tabs.create({ url: 'about:blank' }, (tab) => {
+        if (tab.id) {
+            chrome.tabs.update(tab.id, { url: 'antigravity://' });
+        }
+    });
     sendResponse({ success: true });
     return true;
   }
