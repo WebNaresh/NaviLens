@@ -327,14 +327,14 @@ const checkForPendingPaste = async () => {
 
         if (isGemini || isClaude) {
             const now = Date.now();
-            if (now - navilens_current_capture.timestamp < 60000) { 
+            if (now - navilens_current_capture.timestamp < 300000) { 
                 console.log('[Content] Detected recent capture, attempting auto-paste...');
                 attemptAutoPaste(navilens_current_capture.imageUri);
             }
         } else if (isChatGPT) {
              // Ghost Mode for ChatGPT: Silent check
              const now = Date.now();
-             if (now - navilens_current_capture.timestamp < 60000) {
+             if (now - navilens_current_capture.timestamp < 300000) {
                  // Use smart waitForElement which handles Cloudflare backoff
                  console.log('[Content] Ghost Mode: Waiting for input...');
                  waitForElement('#prompt-textarea', 60000).then((el) => {
@@ -540,10 +540,30 @@ const init = () => {
     const isCloudflare = document.title.includes('Just a moment') || document.querySelector('#challenge-form');
     
     if (isCloudflare) {
+        console.log('[Content] Cloudflare detected. Waiting for title change (Event-driven)...');
         // We are in a challenge. 
-        // DO NOT POLL. DO NOT WAIT. JUST STOP.
-        // Polling flags the browser as a bot.
-        // When the user solves the challenge, the page will reload/navigate, and we will run fresh.
+        // Do NOT poll. Use MutationObserver to wait for the title to change.
+        const titleEl = document.querySelector('title');
+        if (titleEl) {
+            const observer = new MutationObserver(() => {
+                if (!document.title.includes('Just a moment')) {
+                    console.log('[Content] Title changed! Cloudflare passed. Starting...');
+                    observer.disconnect();
+                    checkForPendingPaste();
+                }
+            });
+            observer.observe(titleEl, { childList: true, subtree: true });
+        } else {
+             // Fallback if no title tag (rare)
+             // Try body observer
+             const observer = new MutationObserver(() => {
+                 if (!document.title.includes('Just a moment')) {
+                    observer.disconnect();
+                    checkForPendingPaste();
+                 }
+             });
+             observer.observe(document.body, { childList: true, subtree: true });
+        }
         return;
     }
 
