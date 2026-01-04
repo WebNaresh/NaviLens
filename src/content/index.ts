@@ -186,7 +186,8 @@ const captureElement = async (element: HTMLElement) => {
     
   } catch (error) {
     console.error('Capture failed:', error);
-    showError('Failed to capture component.');
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    showError(`Failed to capture: ${errorMessage}`);
   }
 };
 
