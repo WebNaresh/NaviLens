@@ -196,8 +196,31 @@ const performScrollCapture = async () => {
 
         const fullHeight = scroller.height;
         const fullWidth = document.documentElement.clientWidth;
-        const viewportHeight = scroller.viewHeight; // Use scroller's viewport height for stepping
+        const viewportHeight = scroller.viewHeight;
         
+        // Handle PDF Viewer Edge Case (Plugin hides real height)
+        const isPDF = document.contentType === 'application/pdf';
+        
+        // If content is PDF and height reports as 1 page (Plugin Mode), we cannot scroll it.
+        // Fallback to visible capture only.
+        if (isPDF && fullHeight <= viewportHeight + 100) {
+             showLoading("PDF Viewer detected.<br><span style='font-size: 12px; color: #f59e0b;'>Scrolling automation is blocked by Chrome.<br>Capturing visible area only.</span>");
+             await new Promise(r => setTimeout(r, 2000)); // Show toast
+             
+             // Capture once
+             const response = await chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
+             if (response.success) {
+                 await chrome.storage.local.set({ 
+                    'navilens_current_capture': {
+                        imageUri: response.dataUrl,
+                        timestamp: Date.now()
+                    }
+                });
+                await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+                return; // Exit
+             }
+        }
+
         // Handle high DPI
         const devicePixelRatio = window.devicePixelRatio || 1;
         
