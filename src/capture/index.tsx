@@ -125,9 +125,17 @@ const CaptureResult = () => {
       const rect = canvas.getBoundingClientRect();
       const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
-      
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
+       
+      // Calculate position relative to the Canvas's display size
+      const xDisplay = clientX - rect.left;
+      const yDisplay = clientY - rect.top;
+
+      // Scale to Canvas's internal resolution (Natural Width)
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      const x = xDisplay * scaleX;
+      const y = yDisplay * scaleY;
       
       setCropStart({x, y});
       setCropEnd({x, y});
@@ -143,8 +151,14 @@ const CaptureResult = () => {
       const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
       
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
+      const xDisplay = clientX - rect.left;
+      const yDisplay = clientY - rect.top;
+
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      
+      const x = xDisplay * scaleX;
+      const y = yDisplay * scaleY;
       
       setCropEnd({x, y});
   };
@@ -167,13 +181,14 @@ const CaptureResult = () => {
       const rect = canvas.getBoundingClientRect();
       const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+      
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
 
       ctx.beginPath();
       ctx.moveTo((clientX - rect.left) * scaleX, (clientY - rect.top) * scaleY);
       ctx.strokeStyle = penColor;
-      ctx.lineWidth = lineWidth;
+      ctx.lineWidth = lineWidth * scaleX; // Scale line width to match resolution
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
   };
@@ -204,7 +219,7 @@ const CaptureResult = () => {
       }
   };
 
-  // Helper to merge Image + Canvas (with crop)
+  // Helper to merge Image + Canvas (with crop) and Return JPEG
   const getMergedImageUri = (): Promise<string> => {
       return new Promise((resolve) => {
           if (!imageRef.current || !canvasRef.current) {
@@ -215,17 +230,15 @@ const CaptureResult = () => {
           const img = imageRef.current;
           const overlay = canvasRef.current;
           
-          // Determine crop area
+          // Determine crop area - coordinates are already in Natural Scale
           let cropX = 0, cropY = 0, cropW = img.naturalWidth, cropH = img.naturalHeight;
           
           if (cropStart && cropEnd) {
-              const scaleX = img.naturalWidth / img.width;
-              const scaleY = img.naturalHeight / img.height;
-              
-              const x1 = Math.min(cropStart.x, cropEnd.x) * scaleX;
-              const y1 = Math.min(cropStart.y, cropEnd.y) * scaleY;
-              const x2 = Math.max(cropStart.x, cropEnd.x) * scaleX;
-              const y2 = Math.max(cropStart.y, cropEnd.y) * scaleY;
+             // If cropping was active, use the coordinates
+              const x1 = Math.min(cropStart.x, cropEnd.x);
+              const y1 = Math.min(cropStart.y, cropEnd.y);
+              const x2 = Math.max(cropStart.x, cropEnd.x);
+              const y2 = Math.max(cropStart.y, cropEnd.y);
               
               cropX = x1;
               cropY = y1;
@@ -244,7 +257,33 @@ const CaptureResult = () => {
           // Draw cropped annotations
           ctx?.drawImage(overlay, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
-          resolve(canvas.toDataURL('image/png'));
+          // Return JPEG (0.8 quality) to keep size small for Storage
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
+      });
+  };
+
+  // Helper: Convert Blob to PNG Blob (for Clipboard compatibility)
+  const convertBlobToPng = (blob: Blob): Promise<Blob> => {
+      return new Promise((resolve, reject) => {
+          const img = new Image();
+          const url = URL.createObjectURL(blob);
+          img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              ctx?.drawImage(img, 0, 0);
+              canvas.toBlob((pngBlob) => {
+                  if (pngBlob) resolve(pngBlob);
+                  else reject(new Error('PNG conversion failed'));
+                  URL.revokeObjectURL(url);
+              }, 'image/png');
+          };
+          img.onerror = () => {
+             reject(new Error('Image load failed'));
+             URL.revokeObjectURL(url);
+          };
+          img.src = url;
       });
   };
 
@@ -257,13 +296,11 @@ const CaptureResult = () => {
           
           let item: ClipboardItem;
 
-          if (platform === 'ChatGPT') {
-              const file = new File([blob], "screenshot.png", { type: 'image/png' });
-              item = new ClipboardItem({ 'image/png': file });
-          } else {
-              const cleanBlob = new Blob([blob], { type: 'image/png' });
-              item = new ClipboardItem({ 'image/png': cleanBlob });
-          }
+          // Always ensure PNG for Clipboard Compatibility
+          // Some browsers/platforms reject image/jpeg in ClipboardItem
+          const pngBlob = await convertBlobToPng(blob);
+          const file = new File([pngBlob], "screenshot.png", { type: 'image/png' });
+          item = new ClipboardItem({ 'image/png': file });
           
           await navigator.clipboard.write([item]);
           console.log('[NaviLens] Clipboard Write Success!');
@@ -290,7 +327,7 @@ const CaptureResult = () => {
                    format: [img.width, img.height]
                });
                
-               pdf.addImage(finalUri, 'PNG', 0, 0, img.width, img.height);
+               pdf.addImage(finalUri, 'JPEG', 0, 0, img.width, img.height);
                pdf.save('capture.pdf');
                setToast('PDF Downloaded!');
                setTimeout(() => setToast(null), 2000);
@@ -312,25 +349,26 @@ const CaptureResult = () => {
 
       try {
           // MERGE ANNOTATIONS before sharing
+          // This returns a JPEG (Small Size)
           const finalUri = await getMergedImageUri();
 
-          // 1. ALWAYS Copy Image First (use merged URI)
+          // 1. Copy to Clipboard (converts JPEG -> PNG for compatibility)
           await performCopy(platform, finalUri);
 
-          // 2. Set "Pending Paste" flag WITH DATA
+          // 2. Set "Pending Paste" flag WITH DATA (Uses JPEG URI for storage efficiency)
           if (platform === 'Gemini' || platform === 'ChatGPT') {
               await chrome.storage.local.set({ 
                   'navilens_pending_paste': {
                       platform: platform,
                       timestamp: Date.now(),
-                      imageUri: finalUri // Pass MERGED data
+                      imageUri: finalUri 
                   }
               });
           }
 
           setToast(`Image Copied! Opening ${platform}...`);
           
-          // 3. Launch App via Background Script (more reliable for custom protocols)
+          // 3. Launch App via Background Script
           if (messageType) {
                chrome.runtime.sendMessage({ type: messageType });
           }
@@ -366,6 +404,31 @@ const CaptureResult = () => {
       }
     });
   }, []);
+
+  // Update Crop Visuals to match the scaled canvas
+  // We need to render the crop overlay relative to the DISPLAY size of the container, NOT the internal canvas resolution.
+  // But wait, cropStart/End are now in Natural Coordinates.
+  // We need to project them back to Display Coordinates for the <div> overlay.
+  const getDisplayCropStyle = () => {
+      if (!cropStart || !cropEnd || !canvasRef.current) return {};
+      
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = rect.width / canvas.width;
+      const scaleY = rect.height / canvas.height;
+
+      const x1 = Math.min(cropStart.x, cropEnd.x) * scaleX;
+      const y1 = Math.min(cropStart.y, cropEnd.y) * scaleY;
+      const w = Math.abs(cropEnd.x - cropStart.x) * scaleX;
+      const h = Math.abs(cropEnd.y - cropStart.y) * scaleY;
+
+      return {
+          left: `${x1}px`,
+          top: `${y1}px`,
+          width: `${w}px`,
+          height: `${h}px`
+      };
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center py-6">
@@ -491,7 +554,7 @@ const CaptureResult = () => {
                  <div className="h-8 w-px bg-gray-300 mx-1"></div>
 
                  {/* Share buttons */}
-                <ShareButton 
+                 <ShareButton 
                     label="Gemini" 
                     icon={<svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41C17.92 5.77 20 8.65 20 12c0 2.08-.81 3.98-2.11 5.4l-.99-.01z"/></svg>}
                     onClick={() => handleShare('Gemini', 'OPEN_GEMINI_TAB')}
@@ -543,15 +606,10 @@ const CaptureResult = () => {
                   {isCropActive && cropStart && cropEnd && (
                       <div 
                           className="absolute border-2 border-green-500 border-dashed bg-green-500 bg-opacity-10 pointer-events-none"
-                          style={{
-                              left: `${Math.min(cropStart.x, cropEnd.x)}px`,
-                              top: `${Math.min(cropStart.y, cropEnd.y)}px`,
-                              width: `${Math.abs(cropEnd.x - cropStart.x)}px`,
-                              height: `${Math.abs(cropEnd.y - cropStart.y)}px`
-                          }}
+                          style={getDisplayCropStyle()}
                       >
                           <div className="absolute -top-6 left-0 bg-green-600 text-white text-xs px-2 py-1 rounded">
-                              {Math.round(Math.abs(cropEnd.x - cropStart.x))} × {Math.round(Math.abs(cropEnd.y - cropStart.y))}
+                              {(Math.round(Math.abs(cropEnd.x - cropStart.x)))} × {Math.round(Math.abs(cropEnd.y - cropStart.y))}
                           </div>
                       </div>
                   )}
