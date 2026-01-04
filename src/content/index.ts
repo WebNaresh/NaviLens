@@ -379,86 +379,95 @@ const waitForElement = (selector: string, timeout = 30000): Promise<Element | nu
     });
 };
 
+
 const attemptAutoPaste = async (imageUri: string) => {
     try {
         const blob = dataURItoBlob(imageUri);
         
-        // Attempt to write to clipboard, but don't fail the whole process if it's blocked
-        try {
-            const item = new ClipboardItem({ [blob.type]: blob });
-            await navigator.clipboard.write([item]);
-            console.log('[Content] Image copied to clipboard!');
-        } catch (clipboardError) {
-            console.warn('[Content] Clipboard write failed (likely permission issue), proceeding with synthetic events:', clipboardError);
-        }
-
-
         if (window.location.href.includes('chatgpt')) {
-            // ChatGPT Strategy: Simulate Drag and Drop
-            console.log('[Content] Using ChatGPT specific Drag-and-Drop strategy');
+            // --- ChatGPT Specific Strategy ---
+            console.log('[Content] Detected ChatGPT. Entering "Smart Wait" mode for Cloudflare...');
+            
+            // 1. Wait for the actual chat input (up to 2 minutes)
+            // This prevents running on the Cloudflare verification page
             const inputSelector = '#prompt-textarea';
+            const inputEl = await waitForElement(inputSelector, 120000) as HTMLElement;
             
-            // Wait for element
-            const inputEl = await waitForElement(inputSelector) as HTMLElement;
-            
-
-            if (inputEl) {
-                console.log('[Content] ChatGPT input found. Waiting 10s for page stability...');
-                // Add a visible delay indicator for the user
-                const waitToast = document.createElement('div');
-                waitToast.style.position = 'fixed';
-                waitToast.style.bottom = '20px';
-                waitToast.style.left = '50%';
-                waitToast.style.transform = 'translateX(-50%)';
-                waitToast.style.backgroundColor = '#3b82f6'; // Blue
-                waitToast.style.color = '#fff';
-                waitToast.style.padding = '8px 16px';
-                waitToast.style.borderRadius = '8px';
-                waitToast.style.zIndex = '999999';
-                waitToast.style.fontFamily = 'system-ui';
-                waitToast.style.fontSize = '12px';
-                document.body.appendChild(waitToast);
-
-                // Stabilization delay (10 seconds) with countdown
-                for (let i = 10; i > 0; i--) {
-                    waitToast.textContent = `Waiting for Cloudflare protection... ${i}s`;
-                    await new Promise(r => setTimeout(r, 1000));
-                }
-                
-                waitToast.remove();
-
-                const file = new File([blob], "screenshot.png", { type: blob.type });
-
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
-                // Required properties for some listeners
-                Object.defineProperty(dataTransfer, "files", {
-                  get: () => [file]
-                });
-
-                const events = ['dragenter', 'dragover', 'drop'];
-                for (const type of events) {
-                    const event = new DragEvent(type, {
-                        bubbles: true,
-                        cancelable: true,
-                        // @ts-ignore - dataTransfer is readonly in some defs but settable in init
-                        dataTransfer: dataTransfer,
-                        clientX: inputEl.getBoundingClientRect().left + 10,
-                        clientY: inputEl.getBoundingClientRect().top + 10,
-                        view: window
-                    });
-                    inputEl.dispatchEvent(event);
-                    // Small delay to mimic real interaction
-                    await new Promise(r => setTimeout(r, 50));
-                }
-                console.log('[Content] Dispatched synthetic DROP event for ChatGPT');
-            } else {
-                 console.log('[Content] ChatGPT input element not found after timeout');
+            if (!inputEl) {
+                console.log('[Content] ChatGPT input not found after 2 minutes. Aborting auto-paste.');
+                return;
             }
-        } else {
 
-            // Default Strategy (Gemini/Claude): Synthetic Paste
+            console.log('[Content] ChatGPT input found! Proceeding with paste sequence.');
+
+            // 2. Attempt Clipboard Write (Safe to do now that we are on the actual app)
+            try {
+                const item = new ClipboardItem({ [blob.type]: blob });
+                await navigator.clipboard.write([item]);
+                console.log('[Content] Image copied to clipboard!');
+            } catch (clipboardError) {
+                console.warn('[Content] Clipboard write failed, proceeding with synthetic drop:', clipboardError);
+            }
+
+            // 3. Stabilization Delay (10s) with visible countdown
+            const waitToast = document.createElement('div');
+            waitToast.style.position = 'fixed';
+            waitToast.style.bottom = '20px';
+            waitToast.style.left = '50%';
+            waitToast.style.transform = 'translateX(-50%)';
+            waitToast.style.backgroundColor = '#3b82f6'; // Blue
+            waitToast.style.color = '#fff';
+            waitToast.style.padding = '8px 16px';
+            waitToast.style.borderRadius = '8px';
+            waitToast.style.zIndex = '999999';
+            waitToast.style.fontFamily = 'system-ui';
+            waitToast.style.fontSize = '12px';
+            document.body.appendChild(waitToast);
+
+            for (let i = 10; i > 0; i--) {
+                waitToast.textContent = `Waiting for Cloudflare protection... ${i}s`;
+                await new Promise(r => setTimeout(r, 1000));
+            }
+            waitToast.remove();
+
+            // 4. Simulate Drag and Drop
+            const file = new File([blob], "screenshot.png", { type: blob.type });
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            Object.defineProperty(dataTransfer, "files", {
+                get: () => [file]
+            });
+
+            const events = ['dragenter', 'dragover', 'drop'];
+            for (const type of events) {
+                const event = new DragEvent(type, {
+                    bubbles: true,
+                    cancelable: true,
+                    dataTransfer: dataTransfer,
+                    // @ts-ignore
+                    clientX: inputEl.getBoundingClientRect().left + 10,
+                    clientY: inputEl.getBoundingClientRect().top + 10,
+                    view: window
+                });
+                inputEl.dispatchEvent(event);
+                await new Promise(r => setTimeout(r, 50));
+            }
+            console.log('[Content] Dispatched synthetic DROP event for ChatGPT');
+
+        } else {
+            // --- Default Strategy (Gemini/Claude) ---
             console.log('[Content] Using default Synthetic Paste strategy');
+
+            // 1. Attempt Clipboard Write Immediately
+            try {
+                const item = new ClipboardItem({ [blob.type]: blob });
+                await navigator.clipboard.write([item]);
+                console.log('[Content] Image copied to clipboard!');
+            } catch (clipboardError) {
+                console.warn('[Content] Clipboard write failed, proceeding with synthetic paste:', clipboardError);
+            }
+
+            // 2. Find Input
             let inputSelector = 'div[contenteditable="true"]'; 
             if (window.location.href.includes('gemini')) {
                  inputSelector = 'rich-textarea > div, div[contenteditable="true"]';
@@ -467,6 +476,8 @@ const attemptAutoPaste = async (imageUri: string) => {
             const inputEl = await waitForElement(inputSelector) as HTMLElement;
             if (inputEl) {
                 inputEl.focus();
+                
+                // 3. Synthetic Paste
                 try {
                     const file = new File([blob], "screenshot.png", { type: blob.type });
                     const dataTransfer = new DataTransfer();
@@ -508,6 +519,7 @@ const attemptAutoPaste = async (imageUri: string) => {
         console.error('[Content] Auto-paste failed:', e);
     }
 };
+
 
 
 
