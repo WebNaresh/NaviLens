@@ -30,7 +30,7 @@ const CaptureResult = () => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [isPenActive, setIsPenActive] = useState(false);
   const [penColor, setPenColor] = useState('#ef4444'); 
-  const [lineWidth, setLineWidth] = useState(2); // Smaller default
+  const [lineWidth, setLineWidth] = useState(3); // Default to a medium stroke
   
   // Crop State
   const [isCropActive, setIsCropActive] = useState(false);
@@ -48,16 +48,25 @@ const CaptureResult = () => {
           const img = imageRef.current;
           const canvas = canvasRef.current;
           
-          img.onload = () => {
-              canvas.width = img.width;
-              canvas.height = img.height;
+          const syncSize = () => {
+              // Use NATURAL dimensions for full resolution
+              canvas.width = img.naturalWidth;
+              canvas.height = img.naturalHeight;
+              
               const ctx = canvas.getContext('2d');
               ctx?.clearRect(0, 0, canvas.width, canvas.height);
+              
               // Reset history
               setHistory([]);
               setHistoryStep(-1);
-              saveHistory(); // Save initial blank state
+              saveHistory(); 
           };
+
+          if (img.complete) {
+              syncSize();
+          } else {
+              img.onload = syncSize;
+          }
       }
   }, [imageUri]);
 
@@ -424,7 +433,7 @@ const CaptureResult = () => {
                         <input
                             type="range"
                             min="1"
-                            max="10"
+                            max="20"
                             value={lineWidth}
                             onChange={(e) => setLineWidth(parseInt(e.target.value))}
                             className="w-20 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
