@@ -51,9 +51,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'OPEN_ANTIGRAVITY_TAB') {
-    chrome.tabs.create({ url: 'about:blank' }, (tab) => {
-        if (tab.id) {
-            chrome.tabs.update(tab.id, { url: 'antigravity://' });
+    // Attempt to open via hidden iframe in the active tab (less intrusive, often works better)
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const activeTab = tabs[0];
+        if (activeTab?.id) {
+            chrome.scripting.executeScript({
+                target: { tabId: activeTab.id },
+                func: () => {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = 'antigravity://';
+                    document.body.appendChild(iframe);
+                    setTimeout(() => iframe.remove(), 1000);
+                }
+            });
+        } else {
+             // Fallback if no active tab (e.g. background only), just create a tab
+             chrome.tabs.create({ url: 'antigravity://' });
         }
     });
     sendResponse({ success: true });
