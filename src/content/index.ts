@@ -335,20 +335,16 @@ const checkForPendingPaste = async () => {
              // Ghost Mode for ChatGPT: Silent check
              const now = Date.now();
              if (now - navilens_current_capture.timestamp < 60000) {
-                 const checkAndPaste = () => {
-                     const input = document.querySelector('#prompt-textarea');
-                     if (input) {
-                         // Only log once we found it
-                         console.log('[Content] Ghost Mode: Target found, initializing paste...');
+                 // Use smart waitForElement which handles Cloudflare backoff
+                 console.log('[Content] Ghost Mode: Waiting for input...');
+                 waitForElement('#prompt-textarea', 60000).then((el) => {
+                     if (el) {
+                         console.log('[Content] Target found, pasting...');
                          attemptAutoPaste(navilens_current_capture.imageUri!);
-                         return true;
+                     } else {
+                         console.log('[Content] Input never appeared.');
                      }
-                     return false;
-                 };
-
-                 if (!checkAndPaste()) {
-                     console.log('[Content] Ghost Mode: Input not found immediately. Aborting to stay stealthy.');
-                 }
+                 });
              }
         }
     } catch (e) {
