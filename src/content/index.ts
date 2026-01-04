@@ -379,6 +379,7 @@ const waitForElement = (selector: string, timeout = 5000): Promise<Element | nul
 };
 
 
+
 const attemptAutoPaste = async (imageUri: string) => {
     try {
         const blob = dataURItoBlob(imageUri);
@@ -386,60 +387,91 @@ const attemptAutoPaste = async (imageUri: string) => {
         await navigator.clipboard.write([item]);
         console.log('[Content] Image copied to clipboard!');
 
-        // Try to focus the input area
-        let inputSelector = 'div[contenteditable="true"]'; 
-        if (window.location.href.includes('gemini')) {
-             inputSelector = 'rich-textarea > div, div[contenteditable="true"]'; // More specific for Gemini
-        } else if (window.location.href.includes('chatgpt')) {
-             inputSelector = '#prompt-textarea'; 
-        }
-
-        const inputEl = await waitForElement(inputSelector) as HTMLElement;
-        if (inputEl) {
-            console.log('[Content] Found input element, focusing...', inputEl);
-            inputEl.focus();
+        if (window.location.href.includes('chatgpt')) {
+            // ChatGPT Strategy: Simulate Drag and Drop
+            console.log('[Content] Using ChatGPT specific Drag-and-Drop strategy');
+            const inputSelector = '#prompt-textarea';
+            const inputEl = await waitForElement(inputSelector) as HTMLElement;
             
-            // Dispatch synthetic paste event
-            try {
+            if (inputEl) {
                 const file = new File([blob], "screenshot.png", { type: blob.type });
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(file);
-
-                const pasteEvent = new ClipboardEvent('paste', {
-                    bubbles: true,
-                    cancelable: true,
-                    clipboardData: dataTransfer
+                // Required properties for some listeners
+                Object.defineProperty(dataTransfer, "files", {
+                  get: () => [file]
                 });
 
-                inputEl.dispatchEvent(pasteEvent);
-                console.log('[Content] Dispatched synthetic paste event');
-            } catch (dispatchError) {
-                console.error('[Content] Failed to dispatch paste event:', dispatchError);
+                const events = ['dragenter', 'dragover', 'drop'];
+                for (const type of events) {
+                    const event = new DragEvent(type, {
+                        bubbles: true,
+                        cancelable: true,
+                        // @ts-ignore - dataTransfer is readonly in some defs but settable in init
+                        dataTransfer: dataTransfer,
+                        clientX: inputEl.getBoundingClientRect().left + 10,
+                        clientY: inputEl.getBoundingClientRect().top + 10,
+                        view: window
+                    });
+                    inputEl.dispatchEvent(event);
+                    // Small delay to mimic real interaction
+                    await new Promise(r => setTimeout(r, 50));
+                }
+                console.log('[Content] Dispatched synthetic DROP event for ChatGPT');
             }
-            
-            // Still show a toast as backup/confirmation
-            const toast = document.createElement('div');
-            toast.textContent = 'Image Pasted! (If not, press Ctrl+V)';
-            toast.style.position = 'fixed';
-            toast.style.bottom = '20px';
-            toast.style.left = '50%';
-            toast.style.transform = 'translateX(-50%)';
-            toast.style.backgroundColor = '#10b981'; // Green
-            toast.style.color = '#fff';
-            toast.style.padding = '10px 20px';
-            toast.style.borderRadius = '8px';
-            toast.style.zIndex = '999999';
-            toast.style.fontFamily = 'system-ui';
-            toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-            document.body.appendChild(toast);
-            
-            setTimeout(() => toast.remove(), 4000);
+        } else {
+            // Default Strategy (Gemini/Claude): Synthetic Paste
+            console.log('[Content] Using default Synthetic Paste strategy');
+            let inputSelector = 'div[contenteditable="true"]'; 
+            if (window.location.href.includes('gemini')) {
+                 inputSelector = 'rich-textarea > div, div[contenteditable="true"]';
+            }
+    
+            const inputEl = await waitForElement(inputSelector) as HTMLElement;
+            if (inputEl) {
+                inputEl.focus();
+                try {
+                    const file = new File([blob], "screenshot.png", { type: blob.type });
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+    
+                    const pasteEvent = new ClipboardEvent('paste', {
+                        bubbles: true,
+                        cancelable: true,
+                        clipboardData: dataTransfer
+                    });
+    
+                    inputEl.dispatchEvent(pasteEvent);
+                    console.log('[Content] Dispatched synthetic paste event');
+                } catch (dispatchError) {
+                    console.error('[Content] Failed to dispatch paste event:', dispatchError);
+                }
+            }
         }
+
+        // Always show the backup toast
+        const toast = document.createElement('div');
+        toast.textContent = 'Image Ready! (Press Ctrl+V if not pasted)';
+        toast.style.position = 'fixed';
+        toast.style.bottom = '20px';
+        toast.style.left = '50%';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.backgroundColor = '#10b981'; // Green
+        toast.style.color = '#fff';
+        toast.style.padding = '10px 20px';
+        toast.style.borderRadius = '8px';
+        toast.style.zIndex = '999999';
+        toast.style.fontFamily = 'system-ui';
+        toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+        document.body.appendChild(toast);
+        
+        setTimeout(() => toast.remove(), 4000);
 
     } catch (e) {
         console.error('[Content] Auto-paste failed:', e);
     }
 };
+
 
 
 // Check on load
