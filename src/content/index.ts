@@ -309,7 +309,128 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
+
+// --- Auto-Paste Logic ---
+
+
+// Helper to check if we just opened this tab to paste
+const checkForPendingPaste = async () => {
+    try {
+        const result = await chrome.storage.local.get('navilens_current_capture');
+        const navilens_current_capture = result.navilens_current_capture as { imageUri?: string; timestamp?: number } | undefined;
+        
+        if (!navilens_current_capture || !navilens_current_capture.imageUri || !navilens_current_capture.timestamp) return;
+
+        // Check if this is a target specific URL (Gemini or ChatGPT)
+        const isGemini = window.location.href.includes('gemini.google.com');
+        const isChatGPT = window.location.href.includes('chatgpt.com');
+        const isClaude = window.location.href.includes('claude.ai');
+
+        if (isGemini || isChatGPT || isClaude) {
+             // Check timestamp to avoid pasting old captures? 
+             // Ideally we might clear storage after paste, but keeping it allows re-paste.
+             // We could check if the capture was recent (< 1 min).
+             const now = Date.now();
+             if (now - navilens_current_capture.timestamp < 60000) { // 1 minute window
+                 console.log('[Content] Detected recent capture, attempting auto-paste...');
+                 attemptAutoPaste(navilens_current_capture.imageUri);
+             }
+        }
+    } catch (e) {
+        console.error('[Content] Error checking for pending paste:', e);
+    }
+};
+
+
+const dataURItoBlob = (dataURI: string) => {
+    const byteString = atob(dataURI.split(',')[1]);
+    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
+};
+
+const waitForElement = (selector: string, timeout = 5000): Promise<Element | null> => {
+    return new Promise(resolve => {
+        if (document.querySelector(selector)) {
+            return resolve(document.querySelector(selector));
+        }
+
+        const observer = new MutationObserver((_mutations) => {
+            if (document.querySelector(selector)) {
+                observer.disconnect();
+                resolve(document.querySelector(selector));
+            }
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        setTimeout(() => {
+            observer.disconnect();
+            resolve(null);
+        }, timeout);
+    });
+};
+
+const attemptAutoPaste = async (imageUri: string) => {
+    try {
+        const blob = dataURItoBlob(imageUri);
+        const item = new ClipboardItem({ [blob.type]: blob });
+        await navigator.clipboard.write([item]);
+        console.log('[Content] Image copied to clipboard!');
+
+        // Try to focus the input area and paste
+        // Selectors might change, this is best-effort
+        let inputSelector = 'div[contenteditable="true"]'; // Generic rich text
+        if (window.location.href.includes('gemini')) {
+             inputSelector = 'div[contenteditable="true"]'; // Gemini usually uses this
+        } else if (window.location.href.includes('chatgpt')) {
+             inputSelector = '#prompt-textarea'; 
+        }
+
+        const inputEl = await waitForElement(inputSelector) as HTMLElement;
+        if (inputEl) {
+            console.log('[Content] Found input element, focusing...', inputEl);
+            inputEl.focus();
+            
+            // Note: We cannot programmatically trigger 'paste' event with clipboard data due to security.
+            // But we have copied it to clipboard. 
+            // We can show a toast telling user to press "Ctrl+V".
+            
+            const toast = document.createElement('div');
+            toast.textContent = 'Image Copied! Press Ctrl+V to paste.';
+            toast.style.position = 'fixed';
+            toast.style.bottom = '20px';
+            toast.style.left = '50%';
+            toast.style.transform = 'translateX(-50%)';
+            toast.style.backgroundColor = '#10b981'; // Green
+            toast.style.color = '#fff';
+            toast.style.padding = '10px 20px';
+            toast.style.borderRadius = '8px';
+            toast.style.zIndex = '999999';
+            toast.style.fontFamily = 'system-ui';
+            toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+            document.body.appendChild(toast);
+            
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+    } catch (e) {
+        console.error('[Content] Auto-paste failed:', e);
+    }
+};
+
+// Check on load
+checkForPendingPaste();
+
 console.log('NaviLens Content Script V1 Loaded');
+
 
 
 

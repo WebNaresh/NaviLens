@@ -31,9 +31,35 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true; // Async response
   }
 
+
   if (message.type === 'OPEN_RESULT_TAB') {
     chrome.tabs.create({ url: 'capture.html' });
     sendResponse({ success: true });
     return true;
   }
+
+  if (message.type === 'OPEN_GEMINI_TAB') {
+    chrome.tabs.create({ url: 'https://gemini.google.com/app' });
+    sendResponse({ success: true });
+    return true;
+  }
+
+  if (message.type === 'OPEN_CHATGPT_TAB') {
+    chrome.tabs.create({ url: 'https://chatgpt.com/' });
+    sendResponse({ success: true });
+    return true;
+  }
+
+  if (message.type === 'OPEN_ANTIGRAVITY_TAB') {
+    chrome.tabs.create({ url: 'antigravity://' });
+    sendResponse({ success: true });
+    return true;
+  }
+
+  if (message.type === 'OPEN_VSCODE') {
+    chrome.tabs.create({ url: 'vscode://' });
+    sendResponse({ success: true });
+    return true;
+  }
 });
+
