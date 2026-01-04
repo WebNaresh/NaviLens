@@ -51,20 +51,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'OPEN_ANTIGRAVITY_TAB') {
-    // Try 'cursor://' (common AI editor substitute) if antigravity:// failed
+    // Navigate current tab to cursor:// (often works better than iframes for focus)
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const activeTab = tabs[0];
-        if (activeTab?.id) {
-            chrome.scripting.executeScript({
-                target: { tabId: activeTab.id },
-                func: () => {
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = 'cursor://'; // Try Cursor
-                    document.body.appendChild(iframe);
-                    setTimeout(() => iframe.remove(), 1000);
-                }
-            });
+        if (tabs[0]?.id) {
+            chrome.tabs.update(tabs[0].id, { url: 'cursor://file/C:/' });
         }
     });
     sendResponse({ success: true });
@@ -72,8 +62,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'OPEN_VSCODE') {
-    // Force a path to wake it up
-    chrome.tabs.create({ url: 'vscode://file/' });
+    // Navigate current tab to vscode://
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+            chrome.tabs.update(tabs[0].id, { url: 'vscode://file/C:/' });
+        }
+    });
     sendResponse({ success: true });
     return true;
   }
