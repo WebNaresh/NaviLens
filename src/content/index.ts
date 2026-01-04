@@ -137,11 +137,20 @@ const performScrollCapture = async () => {
         
         // Helper to find the main scrollable element
         const getScroller = () => {
-            // 1. Check if window itself scrolls deeply
-            const docHeight = Math.max(
-                document.documentElement.scrollHeight, 
-                document.body.scrollHeight
-            );
+            // 0. PDF Special Case
+            if (document.contentType === 'application/pdf') {
+                 console.log('[Content] PDF Detected. Forcing window/scrollingElement capture.');
+                 const scroller = document.scrollingElement || document.documentElement;
+                 return { 
+                     element: null, // Null implies window/documentElement scroll
+                     height: scroller.scrollHeight, 
+                     viewHeight: window.innerHeight 
+                 };
+            }
+
+            // 1. Check if window itself scrolls deeply (prefer document.scrollingElement)
+            const docEl = document.scrollingElement || document.documentElement;
+            const docHeight = docEl.scrollHeight;
             
             // Heuristic: If doc is significantly larger than viewport, assume window scroll
             if (docHeight > window.innerHeight + 50 && 
@@ -178,7 +187,7 @@ const performScrollCapture = async () => {
                 return { element: bestEl, height: bestEl.scrollHeight, viewHeight: bestEl.clientHeight };
             }
             
-            // Fallback to window
+            // Fallback to window/doc
             return { element: null, height: docHeight, viewHeight: window.innerHeight };
         };
 
