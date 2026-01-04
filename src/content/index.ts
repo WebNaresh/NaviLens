@@ -401,11 +401,11 @@ const attemptAutoPaste = async (imageUri: string) => {
             // Wait for element
             const inputEl = await waitForElement(inputSelector) as HTMLElement;
             
+
             if (inputEl) {
-                console.log('[Content] ChatGPT input found. Waiting 5s for page stability...');
+                console.log('[Content] ChatGPT input found. Waiting 10s for page stability...');
                 // Add a visible delay indicator for the user
                 const waitToast = document.createElement('div');
-                waitToast.textContent = 'Waiting for page to load completely...';
                 waitToast.style.position = 'fixed';
                 waitToast.style.bottom = '20px';
                 waitToast.style.left = '50%';
@@ -419,12 +419,16 @@ const attemptAutoPaste = async (imageUri: string) => {
                 waitToast.style.fontSize = '12px';
                 document.body.appendChild(waitToast);
 
-                // Stabilization delay (5 seconds)
-                await new Promise(r => setTimeout(r, 5000));
+                // Stabilization delay (10 seconds) with countdown
+                for (let i = 10; i > 0; i--) {
+                    waitToast.textContent = `Waiting for Cloudflare protection... ${i}s`;
+                    await new Promise(r => setTimeout(r, 1000));
+                }
                 
                 waitToast.remove();
 
                 const file = new File([blob], "screenshot.png", { type: blob.type });
+
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(file);
                 // Required properties for some listeners
