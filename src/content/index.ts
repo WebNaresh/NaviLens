@@ -392,13 +392,38 @@ const attemptAutoPaste = async (imageUri: string) => {
             console.warn('[Content] Clipboard write failed (likely permission issue), proceeding with synthetic events:', clipboardError);
         }
 
+
         if (window.location.href.includes('chatgpt')) {
             // ChatGPT Strategy: Simulate Drag and Drop
             console.log('[Content] Using ChatGPT specific Drag-and-Drop strategy');
             const inputSelector = '#prompt-textarea';
+            
+            // Wait for element
             const inputEl = await waitForElement(inputSelector) as HTMLElement;
             
             if (inputEl) {
+                console.log('[Content] ChatGPT input found. Waiting 5s for page stability...');
+                // Add a visible delay indicator for the user
+                const waitToast = document.createElement('div');
+                waitToast.textContent = 'Waiting for page to load completely...';
+                waitToast.style.position = 'fixed';
+                waitToast.style.bottom = '20px';
+                waitToast.style.left = '50%';
+                waitToast.style.transform = 'translateX(-50%)';
+                waitToast.style.backgroundColor = '#3b82f6'; // Blue
+                waitToast.style.color = '#fff';
+                waitToast.style.padding = '8px 16px';
+                waitToast.style.borderRadius = '8px';
+                waitToast.style.zIndex = '999999';
+                waitToast.style.fontFamily = 'system-ui';
+                waitToast.style.fontSize = '12px';
+                document.body.appendChild(waitToast);
+
+                // Stabilization delay (5 seconds)
+                await new Promise(r => setTimeout(r, 5000));
+                
+                waitToast.remove();
+
                 const file = new File([blob], "screenshot.png", { type: blob.type });
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(file);
@@ -427,6 +452,7 @@ const attemptAutoPaste = async (imageUri: string) => {
                  console.log('[Content] ChatGPT input element not found after timeout');
             }
         } else {
+
             // Default Strategy (Gemini/Claude): Synthetic Paste
             console.log('[Content] Using default Synthetic Paste strategy');
             let inputSelector = 'div[contenteditable="true"]'; 
