@@ -546,19 +546,18 @@ const attemptAutoPaste = async (imageUri: string) => {
 
 const init = () => {
     // Ultra-Stealth Mode: Check for Cloudflare title
-    if (document.title.includes('Just a moment') || document.querySelector('#challenge-form')) {
-        // We are in a challenge. Go dark.
-        const stealthInterval = setInterval(() => {
-            const stillCloudflare = document.title.includes('Just a moment') || document.querySelector('#challenge-form');
-            if (!stillCloudflare) {
-                clearInterval(stealthInterval);
-                // Page changed, now safe to init
-                checkForPendingPaste();
-            }
-        }, 2000);
-    } else {
-        checkForPendingPaste();
+    const isCloudflare = document.title.includes('Just a moment') || document.querySelector('#challenge-form');
+    
+    if (isCloudflare) {
+        // We are in a challenge. 
+        // DO NOT POLL. DO NOT WAIT. JUST STOP.
+        // Polling flags the browser as a bot.
+        // When the user solves the challenge, the page will reload/navigate, and we will run fresh.
+        return;
     }
+
+    // Safe to proceed
+    checkForPendingPaste();
 };
 
 
