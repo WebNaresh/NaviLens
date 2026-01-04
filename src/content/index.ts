@@ -356,22 +356,39 @@ const dataURItoBlob = (dataURI: string) => {
 
 const waitForElement = (selector: string, timeout = 30000): Promise<Element | null> => {
     return new Promise(resolve => {
-        if (document.querySelector(selector)) {
-            return resolve(document.querySelector(selector));
-        }
+        const startTime = Date.now();
 
-        // Use polling instead of MutationObserver to be less intrusive (Cloudflare stealth)
-        const checkInterval = setInterval(() => {
-            if (document.querySelector(selector)) {
-                clearInterval(checkInterval);
-                resolve(document.querySelector(selector));
+        const check = () => {
+            // 1. Found it?
+            const el = document.querySelector(selector);
+            if (el) {
+                return resolve(el);
             }
-        }, 1000);
 
-        setTimeout(() => {
-            clearInterval(checkInterval);
-            resolve(null);
-        }, timeout);
+            // 2. Timeout?
+            if (Date.now() - startTime > timeout) {
+                return resolve(null);
+            }
+
+            // 3. Cloudflare detection (Adaptive Backoff)
+            const isCloudflare = document.title.includes('Just a moment') || 
+                                 document.querySelector('#challenge-form') !== null;
+            
+            let nextDelay = 1000;
+            
+            if (isCloudflare) {
+                // If we are in the "Just a moment" screen, BACK OFF significantly
+                // Checking too often here flags us as a bot
+                nextDelay = 5000; 
+            } else {
+                // Randomize slightly to appear more human/less mechanical
+                nextDelay = 1000 + Math.random() * 1000; 
+            }
+
+            setTimeout(check, nextDelay);
+        };
+
+        check();
     });
 };
 
@@ -520,10 +537,10 @@ const attemptAutoPaste = async (imageUri: string) => {
 
 
 
-// Check on load with a slight delay to be less intrusive
+// Check on load with a larger delay to be less intrusive
 setTimeout(() => {
     checkForPendingPaste();
-}, 2000);
+}, 4000);
 
 console.log('NaviLens Content Script V1 Loaded');
 
