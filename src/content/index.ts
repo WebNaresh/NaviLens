@@ -316,10 +316,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // Helper to check if we just opened this tab to paste
 const checkForPendingPaste = async () => {
     try {
-        const result = await chrome.storage.local.get('navilens_current_capture');
-        const navilens_current_capture = result.navilens_current_capture as { imageUri?: string; timestamp?: number } | undefined;
+        const result = await chrome.storage.local.get('navilens_pending_paste');
+        const pendingData = result.navilens_pending_paste as { imageUri?: string; timestamp?: number } | undefined;
         
-        if (!navilens_current_capture || !navilens_current_capture.imageUri || !navilens_current_capture.timestamp) return;
+        if (!pendingData || !pendingData.imageUri || !pendingData.timestamp) return;
 
         const isGemini = window.location.href.includes('gemini.google.com');
         const isChatGPT = window.location.href.includes('chatgpt.com');
@@ -327,20 +327,20 @@ const checkForPendingPaste = async () => {
 
         if (isGemini || isClaude) {
             const now = Date.now();
-            if (now - navilens_current_capture.timestamp < 300000) { 
+            if (now - pendingData.timestamp < 300000) { 
                 console.log('[Content] Detected recent capture, attempting auto-paste...');
-                attemptAutoPaste(navilens_current_capture.imageUri);
+                attemptAutoPaste(pendingData.imageUri);
             }
         } else if (isChatGPT) {
              // Ghost Mode for ChatGPT: Silent check
              const now = Date.now();
-             if (now - navilens_current_capture.timestamp < 300000) {
+             if (now - pendingData.timestamp < 300000) {
                  // Use smart waitForElement which handles Cloudflare backoff
                  console.log('[Content] Ghost Mode: Waiting for input...');
                  waitForElement('#prompt-textarea', 60000).then((el) => {
                      if (el) {
                          console.log('[Content] Target found, pasting...');
-                         attemptAutoPaste(navilens_current_capture.imageUri!);
+                         attemptAutoPaste(pendingData.imageUri!);
                      } else {
                          console.log('[Content] Input never appeared.');
                      }
@@ -521,7 +521,7 @@ const attemptAutoPaste = async (imageUri: string) => {
         setTimeout(() => toast.remove(), 4000);
 
         // CONSUME the capture so it doesn't trigger again on reload (Cloudflare protection)
-        await chrome.storage.local.remove('navilens_current_capture');
+        await chrome.storage.local.remove('navilens_pending_paste');
         console.log('[Content] Capture consumed. Will not auto-paste on reload.');
 
     } catch (e) {
