@@ -537,10 +537,30 @@ const attemptAutoPaste = async (imageUri: string) => {
 
 
 
-// Check on load immediately (Ghost mode handles silence)
-checkForPendingPaste();
 
-console.log('NaviLens Content Script V1 Loaded');
+const init = () => {
+    // Ultra-Stealth Mode: Check for Cloudflare title
+    if (document.title.includes('Just a moment') || document.querySelector('#challenge-form')) {
+        // We are in a challenge. Go dark.
+        const stealthInterval = setInterval(() => {
+            const stillCloudflare = document.title.includes('Just a moment') || document.querySelector('#challenge-form');
+            if (!stillCloudflare) {
+                clearInterval(stealthInterval);
+                // Page changed, now safe to init
+                checkForPendingPaste();
+            }
+        }, 2000);
+    } else {
+        checkForPendingPaste();
+    }
+};
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
+
 
 
 
