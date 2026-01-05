@@ -15,17 +15,17 @@
   ],
   "action": {
     "default_icon": {
-      "16": "navilens_logo.png",
-      "32": "navilens_logo.png",
-      "48": "navilens_logo.png",
-      "128": "navilens_logo.png"
+      "16": "final_icon.png",
+      "32": "final_icon.png",
+      "48": "final_icon.png",
+      "128": "final_icon.png"
     }
   },
   "icons": {
-    "16": "navilens_logo.png",
-    "32": "navilens_logo.png",
-    "48": "navilens_logo.png",
-    "128": "navilens_logo.png"
+    "16": "final_icon.png",
+    "32": "final_icon.png",
+    "48": "final_icon.png",
+    "128": "final_icon.png"
   },
   "background": {
     "service_worker": "assets/background.js",
