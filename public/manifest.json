@@ -28,8 +28,8 @@
   "commands": {
     "capture_full_page": {
       "suggested_key": {
-        "default": "Alt+Shift+L",
-        "mac": "Command+Shift+L"
+        "default": "Alt+Shift+D",
+        "mac": "Command+Shift+D"
       },
       "description": "Capture Full Page"
     },
