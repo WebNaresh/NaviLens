@@ -775,7 +775,194 @@ const triggerInteractiveCrop = (): Promise<boolean> => {
 };
 
 
-// --- Auto-Paste Logic Removed ---
+// --- Auto-Paste Logic ---
+const checkForPendingPaste = async () => {
+    try {
+        const result = await chrome.storage.local.get('navilens_pending_paste');
+        const pendingData = result.navilens_pending_paste as { imageUri?: string; timestamp?: number } | undefined;
+        
+        if (!pendingData || !pendingData.imageUri || !pendingData.timestamp) return;
+
+        const isGemini = window.location.href.includes('gemini.google.com');
+        const isChatGPT = window.location.href.includes('chatgpt.com');
+        const isClaude = window.location.href.includes('claude.ai');
+
+        if (isGemini || isClaude) {
+            const now = Date.now();
+            if (now - pendingData.timestamp < 300000) { 
+                console.log('[Content] Detected recent capture, attempting auto-paste...');
+                attemptAutoPaste(pendingData.imageUri);
+            }
+        } else if (isChatGPT) {
+             // Ghost Mode for ChatGPT: Silent check
+             const now = Date.now();
+             if (now - pendingData.timestamp < 300000) {
+                 // Use smart waitForElement which handles Cloudflare backoff
+                 console.log('[Content] Ghost Mode: Waiting for input...');
+                 waitForElement('#prompt-textarea', 60000).then((el) => {
+                     if (el) {
+                         console.log('[Content] Target found, pasting...');
+                         attemptAutoPaste(pendingData.imageUri!);
+                     } else {
+                         console.log('[Content] Input never appeared.');
+                     }
+                 });
+             }
+        }
+    } catch (e) {
+        console.error('[Content] Error checking for pending paste:', e);
+    }
+};
+
+const waitForElement = (selector: string, timeout = 30000): Promise<Element | null> => {
+    return new Promise(resolve => {
+        const startTime = Date.now();
+
+        const check = () => {
+            // 1. Found it?
+            const el = document.querySelector(selector);
+            if (el) {
+                return resolve(el);
+            }
+
+            // 2. Timeout?
+            if (Date.now() - startTime > timeout) {
+                return resolve(null);
+            }
+
+            // 3. Cloudflare detection (Adaptive Backoff)
+            const isCloudflare = document.title.includes('Just a moment') || 
+                                 document.querySelector('#challenge-form') !== null;
+            
+            let nextDelay = 1000;
+            
+            if (isCloudflare) {
+                // If we are in the "Just a moment" screen, BACK OFF significantly
+                // Checking too often here flags us as a bot
+                nextDelay = 5000; 
+            } else {
+                // Faster polling when safe (non-Cloudflare) to feel snappy
+                nextDelay = 300 + Math.random() * 400; 
+            }
+
+            setTimeout(check, nextDelay);
+        };
+
+        check();
+    });
+};
+
+const attemptAutoPaste = async (imageUri: string) => {
+    try {
+        const blob = dataURItoBlob(imageUri);
+        
+        if (window.location.href.includes('chatgpt')) {
+            // ... ChatGPT Logic ...
+            const inputSelector = '#prompt-textarea';
+            const inputEl = document.querySelector(inputSelector) as HTMLElement; 
+            
+            if (inputEl) {
+                 // Attempt Clipboard Write
+                try {
+                    const item = new ClipboardItem({ [blob.type]: blob });
+                    await navigator.clipboard.write([item]);
+                } catch (e) { console.warn('Clipboard write failed', e); }
+
+                await new Promise(r => setTimeout(r, 2000));
+
+                // Simulate Drag and Drop
+                const file = new File([blob], "screenshot.png", { type: blob.type });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                Object.defineProperty(dataTransfer, "files", { get: () => [file] });
+
+                const events = ['dragenter', 'dragover', 'drop'];
+                for (const type of events) {
+                    const event = new DragEvent(type, {
+                        bubbles: true,
+                        cancelable: true,
+                        dataTransfer: dataTransfer,
+                        // @ts-ignore
+                        clientX: inputEl.getBoundingClientRect().left + 10,
+                        clientY: inputEl.getBoundingClientRect().top + 10,
+                        view: window
+                    });
+                    inputEl.dispatchEvent(event);
+                    await new Promise(r => setTimeout(r, 50));
+                }
+            }
+        } else {
+            // ... Default Strategy ...
+            try {
+                const item = new ClipboardItem({ [blob.type]: blob });
+                await navigator.clipboard.write([item]);
+            } catch (e) { console.warn('Clipboard write failed', e); }
+
+            let inputSelector = 'div[contenteditable="true"]'; 
+            if (window.location.href.includes('gemini')) {
+                 inputSelector = 'rich-textarea > div, div[contenteditable="true"]';
+            }
+    
+            const inputEl = await waitForElement(inputSelector) as HTMLElement;
+            if (inputEl) {
+                inputEl.focus();
+                try {
+                    const file = new File([blob], "screenshot.png", { type: blob.type });
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    const pasteEvent = new ClipboardEvent('paste', {
+                        bubbles: true,
+                        cancelable: true,
+                        clipboardData: dataTransfer
+                    });
+                    inputEl.dispatchEvent(pasteEvent);
+                } catch (e) { console.error('Paste dispatch failed', e); }
+            }
+        }
+
+        // Backup toast
+        const toast = document.createElement('div');
+        toast.textContent = 'Image Ready! (Press Ctrl+V if not pasted)';
+        toast.style.position = 'fixed';
+        toast.style.bottom = '20px';
+        toast.style.left = '50%';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.backgroundColor = '#10b981';
+        toast.style.color = '#fff';
+        toast.style.padding = '10px 20px';
+        toast.style.borderRadius = '8px';
+        toast.style.zIndex = '999999';
+        toast.style.fontFamily = 'system-ui';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+
+        await chrome.storage.local.remove('navilens_pending_paste');
+    } catch (e) {
+        console.error('[Content] Auto-paste failed:', e);
+    }
+};
+
+const init = () => {
+    const isCloudflare = document.title.includes('Just a moment') || document.querySelector('#challenge-form');
+    if (isCloudflare) {
+        const titleEl = document.querySelector('title');
+        if (titleEl) {
+            const observer = new MutationObserver(() => {
+                if (!document.title.includes('Just a moment')) {
+                    observer.disconnect();
+                    checkForPendingPaste();
+                }
+            });
+            observer.observe(titleEl, { childList: true, subtree: true });
+        }
+        return;
+    }
+    checkForPendingPaste();
+};
+
+const deadStart = () => { setTimeout(init, 500); };
+
+if (document.readyState === 'complete') { deadStart(); } else { window.addEventListener('load', deadStart); }
 
 const dataURItoBlob = (dataURI: string) => {
     const byteString = atob(dataURI.split(',')[1]);
