@@ -361,7 +361,7 @@ const performScrollCapture = async () => {
 
     } catch (error) {
         console.error('[Content] Scroll capture failed:', error);
-        showError('Failed to capture full page.');
+        showError(`Failed to capture full page. ${error instanceof Error ? error.message : String(error)}`);
     }
 };
 
