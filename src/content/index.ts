@@ -268,6 +268,42 @@ const performScrollCapture = async () => {
         const captures: { y: number, dataUrl: string, height: number }[] = [];
 
         // 2. Scroll Loop
+        
+        // Helper: Hide fixed/sticky elements to prevent "stuttering" (repeated headers)
+        // We act conservatively: only hide things that are actually fixed/sticky and visible
+        const fixedElements: { el: HTMLElement, originalVisibility: string }[] = [];
+        const allNodes = document.querySelectorAll('*'); // checking all nodes is heavy but necessary
+        
+        // Optimization: Only check once
+        allNodes.forEach((node) => {
+            if (node instanceof HTMLElement) {
+                const style = window.getComputedStyle(node);
+                if ((style.position === 'fixed' || style.position === 'sticky') && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0') {
+                    // Don't hide the scrolling container itself if it happens to be fixed
+                    if (node !== scroller.element) {
+                        fixedElements.push({ el: node, originalVisibility: node.style.visibility });
+                    }
+                }
+            }
+        });
+
+        // Strategy: 
+        // We capture looking for "clean" content. 
+        // Hiding fixed elements prevents them from being stitched repeatedly.
+        // We use visibility: hidden to maintain layout for sticky elements, essentially "ghosting" them.
+        
+        const toggleFixedElements = (hide: boolean) => {
+            fixedElements.forEach(item => {
+                item.el.style.visibility = hide ? 'hidden' : item.originalVisibility;
+            });
+        };
+
+        // Hide them!
+        toggleFixedElements(true);
+
+        // Allow a frame for the hide to render
+        await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+
         while (currentScroll < fullHeight) {
             // Scroll to position
             if (scroller.element) {
@@ -296,8 +332,12 @@ const performScrollCapture = async () => {
             // Restore visibility
             if (panel) panel.style.opacity = '1';
             if (overlay) overlay.style.opacity = '0'; 
-
-            if (!response.success) throw new Error(response.error);
+            
+            // ... (rest of loop)
+            if (!response.success) { 
+                 toggleFixedElements(false); // Restore on error
+                 throw new Error(response.error);
+            }
             
             captures.push({ 
                 y: currentScroll, 
@@ -311,6 +351,9 @@ const performScrollCapture = async () => {
             
             currentScroll += viewportHeight;
         }
+
+        // Restore fixed elements immediately after loop
+        toggleFixedElements(false);
 
         // Restore scroll
         if (scroller.element) {
