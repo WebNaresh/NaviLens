@@ -363,7 +363,30 @@ const performScrollCapture = async () => {
             const progress = Math.min(Math.round((currentScroll / fullHeight) * 100), 99);
             showLoading(`Scanning page... ${progress}%<br><span style='font-size: 12px; color: #94a3b8;'>Scrolling and stitching</span>`);
             
-            currentScroll += viewportHeight;
+            // Calculate next position
+             const nextScrollCandidate = currentScroll + viewportHeight;
+             
+             if (currentScroll + viewportHeight >= fullHeight) {
+                 // We matched the end exactly or just finished the final overlap
+                 break;
+             }
+             
+             // Prepare next step
+             if (nextScrollCandidate + viewportHeight > fullHeight) {
+                 // The NEXT step will be a partial one. 
+                 // Instead of doing a partial scroll, we align to the bottom to capture the "remainder".
+                 // This causes an overlap with the previous image, but since we draw at 'currentScroll' position,
+                 // the new image (which is the bottom-most view) will draw ON TOP of the previous one.
+                 // This perfectly handles the overlap.
+                 currentScroll = fullHeight - viewportHeight;
+             } else {
+                 currentScroll = nextScrollCandidate;
+             }
+             
+             // Safety break to prevent infinite loops if something weird happens with heights
+             if (captures.length > 0 && currentScroll <= captures[captures.length-1].y) {
+                 break; 
+             }
         }
 
         // Restore fixed elements immediately after loop
