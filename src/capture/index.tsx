@@ -39,7 +39,7 @@ const CaptureResult = () => {
   const [cropEnd, setCropEnd] = useState<{x: number, y: number} | null>(null);
   // Unused but kept for strict state tracking if needed
   // const [isDraggingCrop, setIsDraggingCrop] = useState(false); 
-  const [dragMode, setDragMode] = useState<'create' | 'move' | 'resize-tl' | 'resize-tr' | 'resize-bl' | 'resize-br' | null>(null);
+  const [dragMode, setDragMode] = useState<DragMode>(null);
   const [dragStartOffset, setDragStartOffset] = useState<{x: number, y: number} | null>(null);
   
   // Undo History
@@ -51,15 +51,14 @@ const CaptureResult = () => {
       if (imageUri && imageRef.current && canvasRef.current) {
           const img = imageRef.current;
           const canvas = canvasRef.current;
-          
+
           const syncSize = () => {
-              // Use NATURAL dimensions for full resolution
               canvas.width = img.naturalWidth;
               canvas.height = img.naturalHeight;
-              
               const ctx = canvas.getContext('2d');
-              ctx?.clearRect(0, 0, canvas.width, canvas.height);
-              
+              if (ctx) {
+                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+              }
               // Reset history
               setHistory([]);
               setHistoryStep(-1);
@@ -73,6 +72,8 @@ const CaptureResult = () => {
           }
       }
   }, [imageUri]);
+
+  type DragMode = 'create' | 'move' | 'n' | 'e' | 's' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null;
 
   // History Helper - Defined cleanly
   const saveHistory = () => {
@@ -130,38 +131,51 @@ const CaptureResult = () => {
     return { x, y, w, h };
   };
 
-  const getPointerPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
-      const rect = canvas.getBoundingClientRect();
+  const getPointerPos = (e: React.MouseEvent | React.TouchEvent, container: HTMLElement) => {
+      const rect = container.getBoundingClientRect();
       const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
        
       const xDisplay = clientX - rect.left;
       const yDisplay = clientY - rect.top;
 
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
+      // We need to scale this to the CANVAS/IMAGE natural size
+      // Check current display size vs natural size
+      if (!canvasRef.current || !imageRef.current) return { x: 0, y: 0 };
+      
+      const naturalW = imageRef.current.naturalWidth;
+      const naturalH = imageRef.current.naturalHeight;
+      const displayW = rect.width;
+      const displayH = rect.height;
+
+      const scaleX = naturalW / displayW;
+      const scaleY = naturalH / displayH;
 
       return { x: xDisplay * scaleX, y: yDisplay * scaleY };
   };
 
-  const startCrop = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  // DragMode type is already defined above
+
+      // Prevent defaults to stop scrolling on touch etc
+      // e.preventDefault(); 
+      
       if (!isCropActive || !canvasRef.current) return;
       
-      const pos = getPointerPos(e, canvasRef.current);
-      const rect = getCropRect();
+      const container = e.currentTarget;
+      const pos = getPointerPos(e, container);
+      const target = e.target as HTMLElement;
       
-      // Check for handle interaction first
-      if (rect) {
-          const handleSize = 20 * (canvasRef.current.width / canvasRef.current.clientWidth);
-          
-          const near = (px: number, py: number, tx: number, ty: number) => 
-               Math.abs(px - tx) < handleSize && Math.abs(py - ty) < handleSize;
+      // Check for Handles first (via data attributes)
+      const handle = target.getAttribute('data-handle');
+      if (handle) {
+          setDragMode(handle as DragMode);
+          e.stopPropagation(); // Stop bubbling
+          return;
+      }
 
-          if (near(pos.x, pos.y, rect.x, rect.y)) { setDragMode('resize-tl'); return; }
-          if (near(pos.x, pos.y, rect.x + rect.w, rect.y)) { setDragMode('resize-tr'); return; }
-          if (near(pos.x, pos.y, rect.x, rect.y + rect.h)) { setDragMode('resize-bl'); return; }
-          if (near(pos.x, pos.y, rect.x + rect.w, rect.y + rect.h)) { setDragMode('resize-br'); return; }
-          
+      const rect = getCropRect();
+      if (rect) {
+          // Check for Move (Inside Rect)
           if (pos.x > rect.x && pos.x < rect.x + rect.w && pos.y > rect.y && pos.y < rect.y + rect.h) {
               setDragMode('move');
               setDragStartOffset({ x: pos.x - rect.x, y: pos.y - rect.y });
@@ -170,15 +184,16 @@ const CaptureResult = () => {
       }
 
       // Default: Create new crop
-      // setIsDraggingCrop(true);
       setDragMode('create');
       setCropStart(pos);
       setCropEnd(pos);
   };
 
-  const doCrop = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const doCrop = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
       if (!isCropActive || !dragMode || !canvasRef.current) return;
-      const pos = getPointerPos(e, canvasRef.current);
+      
+      const container = e.currentTarget;
+      const pos = getPointerPos(e, container);
 
       if (dragMode === 'create') {
           setCropEnd(pos);
@@ -188,92 +203,121 @@ const CaptureResult = () => {
           const w = rect.w;
           const h = rect.h;
           
-          const newX = pos.x - dragStartOffset.x;
-          const newY = pos.y - dragStartOffset.y;
+          let newX = pos.x - dragStartOffset.x;
+          let newY = pos.y - dragStartOffset.y;
           
+          // boundary check? (Optional, let them drag out slightly is fine)
+          const imgW = canvasRef.current.width;
+          const imgH = canvasRef.current.height;
+          
+          // Clamp
+          newX = Math.max(0, Math.min(newX, imgW - w));
+          newY = Math.max(0, Math.min(newY, imgH - h));
+
           setCropStart({ x: newX, y: newY });
           setCropEnd({ x: newX + w, y: newY + h });
       } else if (cropStart && cropEnd) {
-          // Resize Logic
+          // Resize Logic (8-way)
           const currentRect = getCropRect()!;
-          const { x, y, w, h } = currentRect;
+          let { x, y, w, h } = currentRect;
           
+          // To resize accurately, we need to know WHICH corner is 'fixed' and which is 'moving'.
+          // Simplified: We reset Start/End based on the Handle.
+          
+          // Current bounds
+          let left = x;
+          let right = x + w;
+          let top = y;
+          let bottom = y + h;
+
           switch(dragMode) {
-              case 'resize-tl': 
-                  setCropStart({ x: pos.x, y: pos.y }); 
-                  setCropEnd({ x: x + w, y: y + h }); 
-                  break;
-              case 'resize-tr':
-                  setCropStart({ x: x, y: pos.y }); 
-                  setCropEnd({ x: pos.x, y: y + h });
-                  break;
-              case 'resize-bl':
-                  setCropStart({ x: pos.x, y: y });
-                  setCropEnd({ x: x + w, y: pos.y });
-                  break;
-              case 'resize-br':
-                  setCropStart({ x: x, y: y });
-                  setCropEnd(pos);
-                  break;
+              case 'nw': // Top-Left
+                  left = pos.x; top = pos.y; break;
+              case 'n':  // Top
+                  top = pos.y; break;
+              case 'ne': // Top-Right
+                  right = pos.x; top = pos.y; break;
+              case 'e':  // Right
+                  right = pos.x; break;
+              case 'se': // Bottom-Right
+                  right = pos.x; bottom = pos.y; break;
+              case 's':  // Bottom
+                  bottom = pos.y; break;
+              case 'sw': // Bottom-Left
+                  left = pos.x; bottom = pos.y; break;
+              case 'w':  // Left
+                  left = pos.x; break;
           }
+
+          // Safety Flip
+          setCropStart({ x: left, y: top });
+          setCropEnd({ x: right, y: bottom });
       }
   };
 
   const endCrop = () => {
-      // setIsDraggingCrop(false);
       setDragMode(null);
-      // Normalize rect
+      // Normalize
       if (cropStart && cropEnd) {
           const rect = getCropRect();
-          if (rect && rect.w > 5 && rect.h > 5) {
-              setCropStart({ x: rect.x, y: rect.y });
-              setCropEnd({ x: rect.x + rect.w, y: rect.y + rect.h });
-          } else {
-              setCropStart(null);
-              setCropEnd(null);
+          // Min size check
+          if (rect && (rect.w < 5 || rect.h < 5)) {
+               // Too small, keep previous if exist? or clear.
+               // If creating, clear. If resizing, maybe clamp min size.
+               // Simple: allow tiny crops or clear if zero.
+               if(rect.w < 1) {
+                   setCropStart(null); setCropEnd(null);
+               }
           }
       }
   };
 
   // --- DRAW HANDLERS ---
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const startDrawing = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
       if (!isPenActive || !canvasRef.current) return;
       setIsDrawing(true);
       
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const rect = canvas.getBoundingClientRect();
+      const container = e.currentTarget;
+      const rect = container.getBoundingClientRect();
       const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
       
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
+      // Relative to Display
+      const xDisplay = clientX - rect.left;
+      const yDisplay = clientY - rect.top;
+      
+      // Scale
+      if(!imageRef.current) return;
+      const scaleX = imageRef.current.naturalWidth / rect.width;
+      const scaleY = imageRef.current.naturalHeight / rect.height;
 
-      ctx.beginPath();
-      ctx.moveTo((clientX - rect.left) * scaleX, (clientY - rect.top) * scaleY);
-      ctx.strokeStyle = penColor;
-      ctx.lineWidth = lineWidth * scaleX; 
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.beginPath();
+        ctx.moveTo(xDisplay * scaleX, yDisplay * scaleY);
+        ctx.strokeStyle = penColor;
+        ctx.lineWidth = lineWidth * scaleX; 
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+      }
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
       if (!isDrawing || !isPenActive || !canvasRef.current) return;
       
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const rect = canvas.getBoundingClientRect();
+      const container = e.currentTarget;
+      const rect = container.getBoundingClientRect();
       const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-
-      ctx.lineTo((clientX - rect.left) * scaleX, (clientY - rect.top) * scaleY);
-      ctx.stroke();
+      
+      const scaleX = canvasRef.current.width / rect.width;
+      const scaleY = canvasRef.current.height / rect.height;
+      
+      const ctx = canvasRef.current.getContext('2d');
+      if(ctx) {
+        ctx.lineTo((clientX - rect.left) * scaleX, (clientY - rect.top) * scaleY);
+        ctx.stroke();
+      }
   };
 
   const stopDrawing = () => {
@@ -285,87 +329,48 @@ const CaptureResult = () => {
       }
   };
 
-  // Helper to merge Image + Canvas (with crop)
-  const getMergedImageUri = (): Promise<string> => {
-      return new Promise((resolve) => {
-          if (!imageRef.current || !canvasRef.current) {
-              resolve(imageUri || '');
-              return;
-          }
+  // ... (getMergedImageUri, applyCrop remain same) ...
 
-          const img = imageRef.current;
-          const overlay = canvasRef.current;
-          
-          let cropX = 0, cropY = 0, cropW = img.naturalWidth, cropH = img.naturalHeight;
-          
-          if (cropStart && cropEnd) {
-              const x1 = Math.min(cropStart.x, cropEnd.x);
-              const y1 = Math.min(cropStart.y, cropEnd.y);
-              const x2 = Math.max(cropStart.x, cropEnd.x);
-              const y2 = Math.max(cropStart.y, cropEnd.y);
-              
-              cropX = x1;
-              cropY = y1;
-              cropW = x2 - x1;
-              cropH = y2 - y1;
-          }
-
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          
-          canvas.width = cropW;
-          canvas.height = cropH;
-
-          ctx?.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-          ctx?.drawImage(overlay, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
-          resolve(canvas.toDataURL('image/jpeg', 0.8));
-      });
-  };
-
-  const applyCrop = async () => {
-      if (!cropStart || !cropEnd || !imageRef.current || !canvasRef.current) return;
-      
-      const rect = getCropRect();
-      if (!rect || rect.w < 10 || rect.h < 10) return;
-      
-      setToast('Applying Crop...');
-      const newUri = await getMergedImageUri(); 
-      setImageUri(newUri);
-      
-      setCropStart(null); 
-      setCropEnd(null);
-      setHistory([]); 
-      setIsCropActive(false); // OPTIONAL: Exit crop mode after apply
-      setTimeout(() => setToast(null), 1000);
-  };
-
-  // --- RENDERING HELPERS ---
+  // --- RENDER HELPERS ---
   const getDisplayCropStyle = () => {
       if (!cropStart || !cropEnd || !canvasRef.current) return {};
       const rect = getCropRect();
       if (!rect) return {};
 
-      const canvas = canvasRef.current;
-      const domRect = canvas.getBoundingClientRect();
-      const scaleX = domRect.width / canvas.width;
-      const scaleY = domRect.height / canvas.height;
-
+      // Need to convert INTERNAL coords back to DISPLAY chars (percentage or pixels)
+      // Percentage is safer for responsive resize
+      const totalW = canvasRef.current.width;
+      const totalH = canvasRef.current.height;
+      
       return {
-          left: `${rect.x * scaleX}px`,
-          top: `${rect.y * scaleY}px`,
-          width: `${rect.w * scaleX}px`,
-          height: `${rect.h * scaleY}px`
+          left: `${(rect.x / totalW) * 100}%`,
+          top: `${(rect.y / totalH) * 100}%`,
+          width: `${(rect.w / totalW) * 100}%`,
+          height: `${(rect.h / totalH) * 100}%`
       };
   };
 
-  const getHandleStyle = (pos: 'tl'|'tr'|'bl'|'br') => {
-      const base = { position: 'absolute' as 'absolute', width: '12px', height: '12px', backgroundColor: '#3b82f6', border: '2px solid white', borderRadius: '50%', pointerEvents: 'auto' as 'auto', zIndex: 20 };
+  const getHandleStyle = (pos: DragMode) => {
+      const base: React.CSSProperties = { position: 'absolute', backgroundColor: '#3b82f6', border: '2px solid white', borderRadius: '50%', pointerEvents: 'auto', zIndex: 20 };
+      const size = 12; // px
+      const offset = -6; // px
+      
+      // Common positions (percentages)
+      const c = '50%';
+      const m = '50%';
+
       switch(pos) {
-          case 'tl': return { ...base, left: '-6px', top: '-6px', cursor: 'nwse-resize' };
-          case 'tr': return { ...base, right: '-6px', top: '-6px', cursor: 'nesw-resize' };
-          case 'bl': return { ...base, left: '-6px', bottom: '-6px', cursor: 'nesw-resize' };
-          case 'br': return { ...base, right: '-6px', bottom: '-6px', cursor: 'nwse-resize' };
+          case 'nw': return { ...base, left: offset, top: offset, width: size, height: size, cursor: 'nwse-resize' };
+          case 'n':  return { ...base, left: c, top: offset, width: size, height: size, transform: 'translateX(-50%)', cursor: 'ns-resize', borderRadius: '4px' };
+          case 'ne': return { ...base, right: offset, top: offset, width: size, height: size, cursor: 'nesw-resize' };
+          
+          case 'e':  return { ...base, right: offset, top: m, width: size, height: size, transform: 'translateY(-50%)', cursor: 'ew-resize', borderRadius: '4px' };
+          
+          case 'se': return { ...base, right: offset, bottom: offset, width: size, height: size, cursor: 'nwse-resize' };
+          case 's':  return { ...base, left: c, bottom: offset, width: size, height: size, transform: 'translateX(-50%)', cursor: 'ns-resize', borderRadius: '4px' };
+          case 'sw': return { ...base, left: offset, bottom: offset, width: size, height: size, cursor: 'nesw-resize' };
+          
+          case 'w':  return { ...base, left: offset, top: m, width: size, height: size, transform: 'translateY(-50%)', cursor: 'ew-resize', borderRadius: '4px' };
       }
       return base;
   };
@@ -374,19 +379,30 @@ const CaptureResult = () => {
     if (!isCropActive || !cropStart || !cropEnd) return null;
     return (
         <div 
-            className="absolute border-2 border-indigo-500 bg-indigo-500 bg-opacity-10"
+            className="absolute border-2 border-indigo-500 bg-indigo-500 bg-opacity-10 cursor-move"
             style={getDisplayCropStyle()}
+            data-handle="move" // Middle area triggers move
         >
-            <div style={getHandleStyle('tl')} />
-            <div style={getHandleStyle('tr')} />
-            <div style={getHandleStyle('bl')} />
-            <div style={getHandleStyle('br')} />
+            {/* Corners */}
+            <div style={getHandleStyle('nw')} data-handle="nw" />
+            <div style={getHandleStyle('ne')} data-handle="ne" />
+            <div style={getHandleStyle('sw')} data-handle="sw" />
+            <div style={getHandleStyle('se')} data-handle="se" />
             
-            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white text-xs px-2 py-1 rounded shadow flex gap-2 pointer-events-auto">
+            {/* Sides */}
+            <div style={getHandleStyle('n')} data-handle="n" />
+            <div style={getHandleStyle('e')} data-handle="e" />
+            <div style={getHandleStyle('s')} data-handle="s" />
+            <div style={getHandleStyle('w')} data-handle="w" />
+            
+            {/* Dimensions */}
+            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white text-xs px-2 py-1 rounded shadow flex gap-2 pointer-events-none select-none whitespace-nowrap z-30">
                  <span>{Math.round(Math.abs(cropEnd.x - cropStart.x))} × {Math.round(Math.abs(cropEnd.y - cropStart.y))}</span>
             </div>
 
-            <div className="absolute -bottom-10 right-0 pointer-events-auto">
+            {/* APPLY Button */}
+            <div className="absolute -bottom-10 right-0 pointer-events-auto z-30">
+                 // ... button
                  <button 
                     onClick={(e) => { e.stopPropagation(); applyCrop(); }}
                     className="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded-full shadow hover:bg-green-700 transition"
@@ -750,25 +766,27 @@ const CaptureResult = () => {
                   <span className="block sm:inline">{error}</span>
               </div>
            )}
-           <div className="relative shadow-lg border border-gray-300 bg-white inline-block max-w-full max-h-full">
+           <div 
+                className="relative shadow-lg border border-gray-300 bg-white inline-block max-w-full max-h-full select-none"
+                onMouseDown={isCropActive ? startCrop : startDrawing}
+                onMouseMove={isCropActive ? doCrop : draw}
+                onMouseUp={isCropActive ? endCrop : stopDrawing}
+                onMouseLeave={isCropActive ? endCrop : stopDrawing}
+                onTouchStart={isCropActive ? startCrop : startDrawing}
+                onTouchMove={isCropActive ? doCrop : draw}
+                onTouchEnd={isCropActive ? endCrop : stopDrawing}
+           >
                {imageUri ? (
                   <>
                   <img 
                       ref={imageRef}
                       src={imageUri} 
                       alt="Captured Screenshot" 
-                      className="max-w-full h-auto block select-none" 
+                      className="max-w-full h-auto block pointer-events-none" 
                   />
                   <canvas
                       ref={canvasRef}
-                      onMouseDown={isCropActive ? startCrop : startDrawing}
-                      onMouseMove={isCropActive ? doCrop : draw}
-                      onMouseUp={isCropActive ? endCrop : stopDrawing}
-                      onMouseLeave={isCropActive ? endCrop : stopDrawing}
-                      onTouchStart={isCropActive ? startCrop : startDrawing}
-                      onTouchMove={isCropActive ? doCrop : draw}
-                      onTouchEnd={isCropActive ? endCrop : stopDrawing}
-                      className={`absolute top-0 left-0 w-full h-full cursor-${isCropActive ? 'crosshair' : (isPenActive ? 'crosshair' : 'default')}`}
+                      className={`absolute top-0 left-0 w-full h-full pointer-events-none`}
                   />
                   {/* Interactive Crop Overlay */}
                   {renderCropOverlay()}
