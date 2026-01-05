@@ -130,11 +130,19 @@ const showError = (error: string, imageUri?: string) => {
 
 // --- Clipboard Helper ---
 
-const copyToClipboardAndToast = async (dataUri: string, toastMessage: string = "Image copied to clipboard!") => {
+const copyToClipboardAndToast = async (dataUri: string, toastMessage: string = "Image copied to clipboard!"): Promise<boolean> => {
+    console.log('[Content] copyToClipboardAndToast called. Data URI length:', dataUri.length);
     try {
+        // focus window to try and help with clipboard permission
+        window.focus(); 
+        console.log('[Content] Window focused, attempting clipboard write...');
+        
         const blob = dataURItoBlob(dataUri);
         const item = new ClipboardItem({ [blob.type]: blob });
+        
+        console.log('[Content] ClipboardItem created, writing...');
         await navigator.clipboard.write([item]);
+        console.log('[Content] Clipboard write successful!');
         
         // Show Toast
         const toast = document.createElement('div');
@@ -163,10 +171,13 @@ const copyToClipboardAndToast = async (dataUri: string, toastMessage: string = "
             toast.style.opacity = '0';
             setTimeout(() => toast.remove(), 300);
         }, 3000);
+        
+        return true;
 
     } catch (e) {
-        console.error('[Content] Clipboard write failed:', e);
-        showError(`Failed to copy to clipboard. ${e instanceof Error ? e.message : String(e)}`);
+        console.error('[Content] Clipboard write attempt 1 failed:', e);
+        // Fallback...
+        return false;
     }
 };
 
@@ -216,6 +227,7 @@ const performViewportCapture = async () => {
 // --- Scroll Capture Helper ---
 
 const performScrollCapture = async (options: { copyToClipboard: boolean } = { copyToClipboard: false }) => {
+    console.log('[Content] performScrollCapture started. Options:', options);
     try {
         const tempCanvas = document.createElement('canvas');
         const context = tempCanvas.getContext('2d');
@@ -528,31 +540,40 @@ const performScrollCapture = async (options: { copyToClipboard: boolean } = { co
         const finalImageUri = finalCanvas.toDataURL('image/png'); // Use the cropped one
         
         if (options.copyToClipboard) {
-            await copyToClipboardAndToast(finalImageUri, "Full Page Copied!");
+            const success = await copyToClipboardAndToast(finalImageUri, "Full Page Copied!");
             
-            // Close panel immediately
-            const panel = document.getElementById('navilens-panel');
-            if (panel) panel.style.display = 'none';
-        } else {
-            // Save to storage
-            await chrome.storage.local.set({ 
-                'navilens_current_capture': {
-                    imageUri: finalImageUri,
-                    timestamp: Date.now()
-                }
-            });
-
-            showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
-
-            // Open Result Tab
-            await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
-            
-            // Close panel after short delay
-            setTimeout(() => {
+            if (success) {
+                // Close panel immediately if successful
                 const panel = document.getElementById('navilens-panel');
                 if (panel) panel.style.display = 'none';
-            }, 1000);
+                return;
+            } else {
+                 console.log("[Content] Clipboard failed, falling back to opening tab.");
+                 // Fall through to standard behavior...
+            }
         }
+        
+        // Standard Behavior (Save & Open Tab)
+        // This runs if options.copyToClipboard is false OR if it was true but failed
+        
+        // Save to storage
+        await chrome.storage.local.set({ 
+            'navilens_current_capture': {
+                imageUri: finalImageUri,
+                timestamp: Date.now()
+            }
+        });
+
+        showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
+
+        // Open Result Tab
+        await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+        
+        // Close panel after short delay
+        setTimeout(() => {
+            const panel = document.getElementById('navilens-panel');
+            if (panel) panel.style.display = 'none';
+        }, 1000);
 
     } catch (error) {
         console.error('[Content] Scroll capture failed:', error);

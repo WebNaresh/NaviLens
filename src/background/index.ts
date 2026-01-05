@@ -54,12 +54,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
+  console.log('[Background] Command received:', command);
   if (command === 'capture_full_page') {
     handleCaptureCommand(command, 'CAPTURE_FULL_PAGE');
   } else if (command === 'capture_full_page_clipboard') {
+    console.log('[Background] MATCH: capture_full_page_clipboard');
     handleCaptureCommand(command, 'CAPTURE_FULL_PAGE_CLIPBOARD');
   } else if (command === 'capture_viewport_clipboard') {
       handleCaptureCommand(command, 'CAPTURE_VIEWPORT_CLIPBOARD');
+  } else {
+      console.warn('[Background] Unknown command:', command);
   }
 });
 
