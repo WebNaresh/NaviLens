@@ -41,29 +41,29 @@
   "commands": {
     "capture_full_page": {
       "suggested_key": {
-        "default": "Alt+Shift+D",
-        "mac": "Command+Shift+D"
+        "default": "Ctrl+Shift+D",
+        "mac": "MacCtrl+Shift+D"
       },
       "description": "Capture Full Page"
     },
     "capture_full_page_clipboard": {
       "suggested_key": {
-        "default": "Alt+Shift+A",
-        "mac": "Command+Shift+A"
+        "default": "Ctrl+Shift+A",
+        "mac": "MacCtrl+Shift+A"
       },
       "description": "Capture Full Page & Copy"
     },
     "capture_viewport_clipboard": {
       "suggested_key": {
-        "default": "Alt+Shift+S",
-        "mac": "Command+Shift+S"
+        "default": "Ctrl+Shift+S",
+        "mac": "MacCtrl+Shift+S"
       },
       "description": "Capture Viewport & Copy"
     },
     "capture_crop_clipboard": {
       "suggested_key": {
-        "default": "Alt+Shift+Q",
-        "mac": "Command+Shift+Q"
+        "default": "Ctrl+Shift+Q",
+        "mac": "MacCtrl+Shift+Q"
       },
       "description": "Crop & Capture to Clipboard"
     }
