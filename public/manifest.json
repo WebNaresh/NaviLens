@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "NaviLens - AI Screen Assistant",
   "version": "1.0.0",
-  "description": "Capture screenshots and query Gemini AI for design and content suggestions.",
+  "description": "Capture full-page screenshots, visible areas, or custom crops and copy them directly to your clipboard.",
   "permissions": [
     "activeTab",
     "storage",
