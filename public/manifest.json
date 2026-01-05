@@ -24,5 +24,14 @@
       "js": ["assets/content.js"],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "commands": {
+    "capture_full_page": {
+      "suggested_key": {
+        "default": "Alt+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Capture Full Page"
+    }
+  }
 }

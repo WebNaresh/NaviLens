@@ -53,3 +53,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   // Removed unused protocol handlers
 });
 
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command === 'capture_full_page') {
+    console.log('[Background] capture_full_page command triggered');
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) {
+      try {
+        console.log('[Background] Sending CAPTURE_FULL_PAGE to tab', tab.id);
+        await chrome.tabs.sendMessage(tab.id, { type: 'CAPTURE_FULL_PAGE' });
+      } catch (e) {
+        console.error('[Background] Failed to send message:', e);
+      }
+    } else {
+        console.log('[Background] No active tab found for capture command');
+    }
+  }
+});
+
