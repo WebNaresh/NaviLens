@@ -261,14 +261,17 @@ const performScrollCapture = async () => {
         // Handle high DPI
         const devicePixelRatio = window.devicePixelRatio || 1;
         
+        // Initialize with extra buffer in case content grows or measurements are off
+        // We will crop it at the end.
         tempCanvas.width = fullWidth * devicePixelRatio;
-        tempCanvas.height = fullHeight * devicePixelRatio;
+        tempCanvas.height = (fullHeight + 2000) * devicePixelRatio; // +2000px buffer in case of dynamic growth
         
         let currentScroll = 0;
+        let actualScrollY = 0; // The true position from the browser
+        let maxCapturedY = 0; // Track the bottom-most pixel we captured
+        
         const captures: { y: number, dataUrl: string, height: number }[] = [];
 
-        // 2. Scroll Loop
-        
         // Helper: Hide fixed/sticky elements to prevent "stuttering" (repeated headers)
         // We act conservatively: only hide things that are actually fixed/sticky and visible
         const fixedElements: { el: HTMLElement, originalVisibility: string }[] = [];
@@ -287,11 +290,6 @@ const performScrollCapture = async () => {
             }
         });
 
-        // Strategy: 
-        // We capture looking for "clean" content. 
-        // Hiding fixed elements prevents them from being stitched repeatedly.
-        // We use visibility: hidden to maintain layout for sticky elements, essentially "ghosting" them.
-        
         const toggleFixedElements = (hide: boolean) => {
             fixedElements.forEach(item => {
                 item.el.style.visibility = hide ? 'hidden' : item.originalVisibility;
@@ -301,95 +299,108 @@ const performScrollCapture = async () => {
         // State to track fixed element visibility
         let areFixedElementsHidden = false;
 
-        while (currentScroll < fullHeight) {
-            // Logic: Keep fixed elements visible for the first chunk (y=0) so the header appears at the top.
-            // Hide them for all subsequent chunks to avoid duplication.
+        // Loop until we have covered the original estimated height
+        // OR we detect we are at the bottom (cannot scroll further)
+        while (true) {
+            
+            // 1. Calculate Target Scroll
+            let targetScroll = currentScroll;
+            let isFinalScroll = false;
+
+            // Check if this step would exceed our estimated bounds
+            if (currentScroll + viewportHeight >= fullHeight) {
+                // We are near the end. Force scroll to the very bottom to catch the footer.
+                 if (scroller.element) {
+                     targetScroll = scroller.element.scrollHeight; // Max generic
+                 } else {
+                     targetScroll = document.body.scrollHeight; // Max window
+                 }
+                 isFinalScroll = true;
+            }
+
+            // 2. Hide/Show Fixed Elements
+            // Keep visible for the very top (y=0)
             if (currentScroll > 0 && !areFixedElementsHidden) {
                  toggleFixedElements(true);
                  areFixedElementsHidden = true;
-                 // Give browser a moment to paint the hide
                  await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
             } else if (currentScroll === 0 && areFixedElementsHidden) {
-                 // Should default to visible, but just in case
                  toggleFixedElements(false);
                  areFixedElementsHidden = false;
                  await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
             }
 
-            // Scroll to position
+            // 3. Perform Scroll
             if (scroller.element) {
-                // For inner scrollers, fixed elements (relative to window) usually sit on top anyway.
-                // But if they are *inside* the scroller? 
-                // Typically fixed elements are relative to viewport, so this logic stands.
-                scroller.element.scrollTo(0, currentScroll);
+                scroller.element.scrollTo(0, targetScroll);
             } else {
-                window.scrollTo(0, currentScroll);
+                window.scrollTo(0, targetScroll);
             }
             
-            // Wait for scroll/render AND respect Chrome's capture quota
+            // Wait for scroll/render
             await new Promise(r => setTimeout(r, 800)); 
+
+            // 4. READ actual position (Truth)
+            // We use this for stitching, not the 'targetScroll'
+            if (scroller.element) {
+                actualScrollY = scroller.element.scrollTop;
+            } else {
+                actualScrollY = window.scrollY;
+            }
             
-            // Hide panel before capture to avoid artifacts
+            console.log(`[Content] Target: ${targetScroll}, Actual: ${actualScrollY}`);
+
+            // 5. Capture
+            // Hide panel briefly
             const panel = document.getElementById('navilens-panel');
             const overlay = document.querySelector('div[style*="rgba(79, 70, 229, 0.1)"]') as HTMLElement;
-            
             if (panel) panel.style.opacity = '0'; 
             if (overlay) overlay.style.opacity = '0';
-
-            // Small layout/paint wait
             await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
 
-            // Capture via background script (Native method)
-            console.log(`[Content] Capturing at scroll Y: ${currentScroll}`);
             const response = await chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
             
-            // Restore visibility
             if (panel) panel.style.opacity = '1';
             if (overlay) overlay.style.opacity = '0'; 
-            
-            // ... (rest of loop)
+
             if (!response.success) { 
-                 toggleFixedElements(false); // Restore on error
+                 toggleFixedElements(false);
                  throw new Error(response.error);
             }
             
+            // 6. Store
+            const capturedHeight = Math.min(viewportHeight, fullHeight + 2000 - actualScrollY); // Sanity cap
             captures.push({ 
-                y: currentScroll, 
+                y: actualScrollY, 
                 dataUrl: response.dataUrl,
-                height: Math.min(viewportHeight, fullHeight - currentScroll)
+                height: capturedHeight 
             });
+            
+            // Track total area covered
+            const bottomOfThisCapture = actualScrollY + viewportHeight;
+            if (bottomOfThisCapture > maxCapturedY) {
+                maxCapturedY = bottomOfThisCapture;
+            }
 
             // Update UI
-            const progress = Math.min(Math.round((currentScroll / fullHeight) * 100), 99);
+            const progress = Math.min(Math.round((actualScrollY / fullHeight) * 100), 99);
             showLoading(`Scanning page... ${progress}%<br><span style='font-size: 12px; color: #94a3b8;'>Scrolling and stitching</span>`);
+
+            // 7. Break Logic
+            // If we are at the bottom (scrolled less than we requested, or fulfilled the final step)
+            // Or if we have covered the full estimated height
+            if (isFinalScroll || Math.ceil(bottomOfThisCapture) >= fullHeight || (actualScrollY < targetScroll && Math.abs(actualScrollY - targetScroll) > 10)) {
+                // If we tried to scroll to X but stuck at Y < X, we hit bottom.
+                // Or if we explicitly did the "Final Scroll".
+                console.log('[Content] Reached bottom or covered full height.');
+                break;
+            }
             
-            // Calculate next position
-             const nextScrollCandidate = currentScroll + viewportHeight;
-             
-             if (currentScroll + viewportHeight >= fullHeight) {
-                 // We matched the end exactly or just finished the final overlap
-                 break;
-             }
-             
-             // Prepare next step
-             if (nextScrollCandidate + viewportHeight > fullHeight) {
-                 // The NEXT step will be a partial one. 
-                 // Instead of doing a partial scroll, we align to the bottom to capture the "remainder".
-                 // This causes an overlap with the previous image, but since we draw at 'currentScroll' position,
-                 // the new image (which is the bottom-most view) will draw ON TOP of the previous one.
-                 // This perfectly handles the overlap.
-                 currentScroll = fullHeight - viewportHeight;
-             } else {
-                 currentScroll = nextScrollCandidate;
-             }
-             
-             // Safety break to prevent infinite loops if something weird happens with heights
-             if (captures.length > 0 && currentScroll <= captures[captures.length-1].y) {
-                 break; 
-             }
+            // Next step
+            currentScroll = actualScrollY + viewportHeight;
         }
 
-        // Restore fixed elements immediately after loop
+        // Restore fixed elements
         toggleFixedElements(false);
 
         // Restore scroll
@@ -410,14 +421,26 @@ const performScrollCapture = async () => {
                 
                 context.drawImage(
                     img, 
-                    0, 0, img.width, img.height, // Source full capture
-                    0, capture.y * devicePixelRatio, tempCanvas.width, img.height // Dest
+                    0, 0, img.width, img.height, 
+                    0, capture.y * devicePixelRatio, tempCanvas.width, img.height 
                 );
             }
         }
 
         console.log('[Content] Stitching complete.');
-        const finalImageUri = tempCanvas.toDataURL('image/png');
+        
+        // 4. Final Crop (Crucial! Remove the empty buffer)
+        const finalCanvas = document.createElement('canvas'); // Create a fresh tailored canvas
+        const finalContentHeight = maxCapturedY * devicePixelRatio;
+        finalCanvas.width = tempCanvas.width;
+        finalCanvas.height = finalContentHeight;
+        
+        const finalContext = finalCanvas.getContext('2d');
+        if (finalContext) {
+            finalContext.drawImage(tempCanvas, 0, 0, tempCanvas.width, finalContentHeight, 0, 0, tempCanvas.width, finalContentHeight);
+        }
+
+        const finalImageUri = finalCanvas.toDataURL('image/png'); // Use the cropped one
         
         // Save to storage
         await chrome.storage.local.set({ 
