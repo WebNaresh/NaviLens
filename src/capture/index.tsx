@@ -154,7 +154,8 @@ const CaptureResult = () => {
       return { x: xDisplay * scaleX, y: yDisplay * scaleY };
   };
 
-  // DragMode type is already defined above
+
+  const startCrop = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
 
       // Prevent defaults to stop scrolling on touch etc
       // e.preventDefault(); 
@@ -329,7 +330,55 @@ const CaptureResult = () => {
       }
   };
 
-  // ... (getMergedImageUri, applyCrop remain same) ...
+  const getMergedImageUri = async (): Promise<string> => {
+      if (!imageRef.current || !canvasRef.current) return '';
+      
+      const img = imageRef.current;
+      const overlayCanvas = canvasRef.current;
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return '';
+
+      // Draw Base Image
+      ctx.drawImage(img, 0, 0);
+      
+      // Draw Drawings (Overlay)
+      ctx.drawImage(overlayCanvas, 0, 0);
+      
+      return canvas.toDataURL('image/png');
+  };
+
+  const applyCrop = async () => {
+      const rect = getCropRect();
+      if (!rect || !imageRef.current || !canvasRef.current) return;
+      
+      // 1. Get Merged Image (background + drawing)
+      const mergedUri = await getMergedImageUri();
+      
+      const img = new Image();
+      img.src = mergedUri;
+      await new Promise(r => img.onload = r);
+      
+      // 2. Crop it
+      const canvas = document.createElement('canvas');
+      canvas.width = rect.w;
+      canvas.height = rect.h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
+      ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+      
+      // 3. Update State
+      setImageUri(canvas.toDataURL('image/png'));
+      setIsCropActive(false);
+      setCropStart(null); 
+      setCropEnd(null);
+      setToast("Image Cropped!");
+  };
+
 
   // --- RENDER HELPERS ---
   const getDisplayCropStyle = () => {
@@ -402,7 +451,7 @@ const CaptureResult = () => {
 
             {/* APPLY Button */}
             <div className="absolute -bottom-10 right-0 pointer-events-auto z-30">
-                 // ... button
+
                  <button 
                     onClick={(e) => { e.stopPropagation(); applyCrop(); }}
                     className="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded-full shadow hover:bg-green-700 transition"
