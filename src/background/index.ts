@@ -38,19 +38,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message.type === 'OPEN_GEMINI_TAB') {
-    chrome.tabs.create({ url: 'https://gemini.google.com/app' });
-    sendResponse({ success: true });
-    return true;
-  }
-
-  if (message.type === 'OPEN_CHATGPT_TAB') {
-    chrome.tabs.create({ url: 'https://chatgpt.com/' });
-    sendResponse({ success: true });
-    return true;
-  }
-
-  // Removed unused protocol handlers
 });
 
 chrome.commands.onCommand.addListener(async (command) => {

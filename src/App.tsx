@@ -26,7 +26,7 @@ function App() {
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
             NaviLens
           </CardTitle>
-          <CardDescription>AI-Powered Screen Assistant</CardDescription>
+          <CardDescription>Screen Capture made easy</CardDescription>
         </CardHeader>
         
         <Separator className="mb-6" />
@@ -49,7 +49,7 @@ function App() {
 
         <CardFooter className="px-0 pt-2 flex justify-center">
           <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-            NaviLens Intelligent Capture
+            NaviLens Capture
           </p>
         </CardFooter>
       </Card>

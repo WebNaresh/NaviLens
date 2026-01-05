@@ -72,7 +72,7 @@ const createFloatingPanel = () => {
   return panel;
 };
 
-const showLoading = (message: string = "Analyzing UI component...") => {
+const showLoading = (message: string = "Processing capture...") => {
   const panel = createFloatingPanel();
   const content = document.getElementById('navilens-content');
   if (content) {
@@ -92,7 +92,7 @@ const showError = (error: string, imageUri?: string) => {
   const panel = createFloatingPanel();
   const content = document.getElementById('navilens-content');
   if (content) {
-    let html = `<p style="color: #ef4444; text-align: center; font-weight: 500;">AI Analysis Failed</p>`;
+    let html = `<p style="color: #ef4444; text-align: center; font-weight: 500;">Capture Failed</p>`;
     html += `<p style="color: #64748b; font-size: 13px; margin-top: 8px; text-align: center;">${error}</p>`;
     
     if (imageUri) {
@@ -775,48 +775,7 @@ const triggerInteractiveCrop = (): Promise<boolean> => {
 };
 
 
-// --- Auto-Paste Logic ---
-
-
-// Helper to check if we just opened this tab to paste
-const checkForPendingPaste = async () => {
-    try {
-        const result = await chrome.storage.local.get('navilens_pending_paste');
-        const pendingData = result.navilens_pending_paste as { imageUri?: string; timestamp?: number } | undefined;
-        
-        if (!pendingData || !pendingData.imageUri || !pendingData.timestamp) return;
-
-        const isGemini = window.location.href.includes('gemini.google.com');
-        const isChatGPT = window.location.href.includes('chatgpt.com');
-        const isClaude = window.location.href.includes('claude.ai');
-
-        if (isGemini || isClaude) {
-            const now = Date.now();
-            if (now - pendingData.timestamp < 300000) { 
-                console.log('[Content] Detected recent capture, attempting auto-paste...');
-                attemptAutoPaste(pendingData.imageUri);
-            }
-        } else if (isChatGPT) {
-             // Ghost Mode for ChatGPT: Silent check
-             const now = Date.now();
-             if (now - pendingData.timestamp < 300000) {
-                 // Use smart waitForElement which handles Cloudflare backoff
-                 console.log('[Content] Ghost Mode: Waiting for input...');
-                 waitForElement('#prompt-textarea', 60000).then((el) => {
-                     if (el) {
-                         console.log('[Content] Target found, pasting...');
-                         attemptAutoPaste(pendingData.imageUri!);
-                     } else {
-                         console.log('[Content] Input never appeared.');
-                     }
-                 });
-             }
-        }
-    } catch (e) {
-        console.error('[Content] Error checking for pending paste:', e);
-    }
-};
-
+// --- Auto-Paste Logic Removed ---
 
 const dataURItoBlob = (dataURI: string) => {
     const byteString = atob(dataURI.split(',')[1]);
@@ -828,228 +787,6 @@ const dataURItoBlob = (dataURI: string) => {
     }
     return new Blob([ab], { type: mimeString });
 };
-
-
-const waitForElement = (selector: string, timeout = 30000): Promise<Element | null> => {
-    return new Promise(resolve => {
-        const startTime = Date.now();
-
-        const check = () => {
-            // 1. Found it?
-            const el = document.querySelector(selector);
-            if (el) {
-                return resolve(el);
-            }
-
-            // 2. Timeout?
-            if (Date.now() - startTime > timeout) {
-                return resolve(null);
-            }
-
-            // 3. Cloudflare detection (Adaptive Backoff)
-            const isCloudflare = document.title.includes('Just a moment') || 
-                                 document.querySelector('#challenge-form') !== null;
-            
-            let nextDelay = 1000;
-            
-            if (isCloudflare) {
-                // If we are in the "Just a moment" screen, BACK OFF significantly
-                // Checking too often here flags us as a bot
-                nextDelay = 5000; 
-            } else {
-                // Faster polling when safe (non-Cloudflare) to feel snappy
-                nextDelay = 300 + Math.random() * 400; 
-            }
-
-            setTimeout(check, nextDelay);
-        };
-
-        check();
-    });
-};
-
-
-const attemptAutoPaste = async (imageUri: string) => {
-    try {
-        const blob = dataURItoBlob(imageUri);
-        
-        if (window.location.href.includes('chatgpt')) {
-
-            // --- ChatGPT Logic (Simplified) ---
-            // Note: We are guaranteed to have the input here because checkForPendingPaste waited for it.
-            const inputSelector = '#prompt-textarea';
-            const inputEl = document.querySelector(inputSelector) as HTMLElement; 
-            
-            if (inputEl) {
-                console.log('[Content] Ghost Mode: Target verified. Executing paste sequence.');
-
-                 // 2. Attempt Clipboard Write
-                try {
-                    const item = new ClipboardItem({ [blob.type]: blob });
-                    await navigator.clipboard.write([item]);
-                    console.log('[Content] Image copied to clipboard!');
-                } catch (clipboardError) {
-                    console.warn('[Content] Clipboard write failed, proceeding with synthetic drop:', clipboardError);
-                }
-
-                // 3. Short Stabilization (2s) just to be safe for hydration
-                await new Promise(r => setTimeout(r, 2000));
-
-                // 4. Simulate Drag and Drop
-                const file = new File([blob], "screenshot.png", { type: blob.type });
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
-                Object.defineProperty(dataTransfer, "files", {
-                    get: () => [file]
-                });
-
-                const events = ['dragenter', 'dragover', 'drop'];
-                for (const type of events) {
-                    const event = new DragEvent(type, {
-                        bubbles: true,
-                        cancelable: true,
-                        dataTransfer: dataTransfer,
-                        // @ts-ignore
-                        clientX: inputEl.getBoundingClientRect().left + 10,
-                        clientY: inputEl.getBoundingClientRect().top + 10,
-                        view: window
-                    });
-                    inputEl.dispatchEvent(event);
-                    await new Promise(r => setTimeout(r, 50));
-                }
-                console.log('[Content] Dispatched synthetic DROP event for ChatGPT');
-            } else {
-                console.log('[Content] ChatGPT input lost during handoff? Aborting.');
-            }
-
-
-        } else {
-            // --- Default Strategy (Gemini/Claude) ---
-            console.log('[Content] Using default Synthetic Paste strategy');
-
-            // 1. Attempt Clipboard Write Immediately
-            try {
-                const item = new ClipboardItem({ [blob.type]: blob });
-                await navigator.clipboard.write([item]);
-                console.log('[Content] Image copied to clipboard!');
-            } catch (clipboardError) {
-                console.warn('[Content] Clipboard write failed, proceeding with synthetic paste:', clipboardError);
-            }
-
-            // 2. Find Input
-            let inputSelector = 'div[contenteditable="true"]'; 
-            if (window.location.href.includes('gemini')) {
-                 inputSelector = 'rich-textarea > div, div[contenteditable="true"]';
-            }
-    
-            const inputEl = await waitForElement(inputSelector) as HTMLElement;
-            if (inputEl) {
-                inputEl.focus();
-                
-                // 3. Synthetic Paste
-                try {
-                    const file = new File([blob], "screenshot.png", { type: blob.type });
-                    const dataTransfer = new DataTransfer();
-                    dataTransfer.items.add(file);
-    
-                    const pasteEvent = new ClipboardEvent('paste', {
-                        bubbles: true,
-                        cancelable: true,
-                        clipboardData: dataTransfer
-                    });
-    
-                    inputEl.dispatchEvent(pasteEvent);
-                    console.log('[Content] Dispatched synthetic paste event');
-                } catch (dispatchError) {
-                    console.error('[Content] Failed to dispatch paste event:', dispatchError);
-                }
-            }
-        }
-
-
-        // Always show the backup toast
-        const toast = document.createElement('div');
-        toast.textContent = 'Image Ready! (Press Ctrl+V if not pasted)';
-        toast.style.position = 'fixed';
-        toast.style.bottom = '20px';
-        toast.style.left = '50%';
-        toast.style.transform = 'translateX(-50%)';
-        toast.style.backgroundColor = '#10b981'; // Green
-        toast.style.color = '#fff';
-        toast.style.padding = '10px 20px';
-        toast.style.borderRadius = '8px';
-        toast.style.zIndex = '999999';
-        toast.style.fontFamily = 'system-ui';
-        toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-        document.body.appendChild(toast);
-        
-        setTimeout(() => toast.remove(), 4000);
-
-        // CONSUME the capture so it doesn't trigger again on reload (Cloudflare protection)
-        await chrome.storage.local.remove('navilens_pending_paste');
-        console.log('[Content] Capture consumed. Will not auto-paste on reload.');
-
-    } catch (e) {
-
-        console.error('[Content] Auto-paste failed:', e);
-    }
-};
-
-
-
-
-
-
-const init = () => {
-    // Ultra-Stealth Mode: Check for Cloudflare title
-    const isCloudflare = document.title.includes('Just a moment') || document.querySelector('#challenge-form');
-    
-    if (isCloudflare) {
-        console.log('[Content] Cloudflare detected. Waiting for title change (Event-driven)...');
-        // We are in a challenge. 
-        // Do NOT poll. Use MutationObserver to wait for the title to change.
-        const titleEl = document.querySelector('title');
-        if (titleEl) {
-            const observer = new MutationObserver(() => {
-                if (!document.title.includes('Just a moment')) {
-                    console.log('[Content] Title changed! Cloudflare passed. Starting...');
-                    observer.disconnect();
-                    checkForPendingPaste();
-                }
-            });
-            observer.observe(titleEl, { childList: true, subtree: true });
-        } else {
-             // Fallback if no title tag (rare)
-             // Try body observer
-             const observer = new MutationObserver(() => {
-                 if (!document.title.includes('Just a moment')) {
-                    observer.disconnect();
-                    checkForPendingPaste();
-                 }
-             });
-             observer.observe(document.body, { childList: true, subtree: true });
-        }
-        return;
-    }
-
-    // Safe to proceed
-    checkForPendingPaste();
-};
-
-
-// "Dead Start" Strategy: Wait for window load + 4 seconds buffer
-// This ensures we are completely inert during Cloudflare's initial fingerprinting
-const deadStart = () => {
-    setTimeout(() => {
-        init();
-    }, 500); 
-};
-
-if (document.readyState === 'complete') {
-    deadStart();
-} else {
-    window.addEventListener('load', deadStart);
-}
 
 
 

@@ -8,16 +8,7 @@ interface CaptureData {
   timestamp: number;
 }
 
-const ShareButton = ({ label, icon, onClick }: { label: string, icon: React.ReactNode, onClick: () => void }) => (
-    <button 
-        onClick={onClick}
-        className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 hover:text-indigo-600 hover:border-indigo-300 transition-all text-sm font-medium shadow-sm group"
-        title={`Share to ${label}`}
-    >
-        <span className="text-gray-500 group-hover:text-indigo-500">{icon}</span>
-        <span>{label}</span>
-    </button>
-);
+// ShareButton removed
 
 const CaptureResult = () => {
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -536,40 +527,7 @@ const CaptureResult = () => {
        }
   };
 
-  const handleShare = async (platform: string, messageType?: string) => {
-      if (!imageUri) {
-          setError("No image to share");
-          return;
-      }
-
-      setToast(`Preparing for ${platform}...`);
-      try {
-          const finalUri = await getMergedImageUri();
-          await performCopy(platform, finalUri);
-
-          if (platform === 'Gemini' || platform === 'ChatGPT') {
-              await chrome.storage.local.set({ 
-                  'navilens_pending_paste': {
-                      platform: platform,
-                      timestamp: Date.now(),
-                      imageUri: finalUri 
-                  }
-              });
-          }
-
-          setToast(`Image Copied! Opening ${platform}...`);
-          
-          if (messageType) {
-               chrome.runtime.sendMessage({ type: messageType });
-          }
-          setTimeout(() => setToast(null), 4000);
-
-      } catch (err: any) {
-          console.error('Share failed', err);
-          setError(`Copy failed: ${err.message || err}`);
-          setToast(null);
-      }
-  };
+// handleShare removed
 
   const handleCopyOnly = async () => {
        if (!imageUri) return;
@@ -793,18 +751,6 @@ const CaptureResult = () => {
                      <span>PDF</span>
                  </button>
 
-                 <div className="h-8 w-px bg-gray-300 mx-1"></div>
-
-                 <ShareButton 
-                    label="Gemini" 
-                    icon={<svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41C17.92 5.77 20 8.65 20 12c0 2.08-.81 3.98-2.11 5.4l-.99-.01z"/></svg>}
-                    onClick={() => handleShare('Gemini', 'OPEN_GEMINI_TAB')}
-                />
-                <ShareButton 
-                    label="ChatGPT" 
-                    icon={<svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>} 
-                    onClick={() => handleShare('ChatGPT', 'OPEN_CHATGPT_TAB')}
-                />
             </div>
         </div>
 
