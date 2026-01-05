@@ -298,15 +298,29 @@ const performScrollCapture = async () => {
             });
         };
 
-        // Hide them!
-        toggleFixedElements(true);
-
-        // Allow a frame for the hide to render
-        await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+        // State to track fixed element visibility
+        let areFixedElementsHidden = false;
 
         while (currentScroll < fullHeight) {
+            // Logic: Keep fixed elements visible for the first chunk (y=0) so the header appears at the top.
+            // Hide them for all subsequent chunks to avoid duplication.
+            if (currentScroll > 0 && !areFixedElementsHidden) {
+                 toggleFixedElements(true);
+                 areFixedElementsHidden = true;
+                 // Give browser a moment to paint the hide
+                 await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+            } else if (currentScroll === 0 && areFixedElementsHidden) {
+                 // Should default to visible, but just in case
+                 toggleFixedElements(false);
+                 areFixedElementsHidden = false;
+                 await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+            }
+
             // Scroll to position
             if (scroller.element) {
+                // For inner scrollers, fixed elements (relative to window) usually sit on top anyway.
+                // But if they are *inside* the scroller? 
+                // Typically fixed elements are relative to viewport, so this logic stands.
                 scroller.element.scrollTo(0, currentScroll);
             } else {
                 window.scrollTo(0, currentScroll);
