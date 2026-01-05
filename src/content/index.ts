@@ -607,7 +607,172 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     setTimeout(() => performViewportCapture(), 50);
     sendResponse({ status: 'capturing' });
   }
+
+  if (message.type === 'CAPTURE_CROP_CLIPBOARD') {
+      console.log('[Content] Starting Crop capture logic...');
+      triggerInteractiveCrop().then((didCapture) => {
+          sendResponse({ status: didCapture ? 'captured' : 'cancelled' });
+      });
+      // Return true to indicate we will sendResponse asynchronously if we wanted to wait (which we do roughly)
+      return true;
+  }
 });
+
+// --- Crop UI Helper ---
+
+const triggerInteractiveCrop = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+        // Remove existing overlay if any (cleanup)
+        const existing = document.getElementById('navilens-crop-overlay');
+        if (existing) existing.remove();
+
+        const cropOverlay = document.createElement('div');
+        cropOverlay.id = 'navilens-crop-overlay';
+        cropOverlay.style.position = 'fixed';
+        cropOverlay.style.top = '0';
+        cropOverlay.style.left = '0';
+        cropOverlay.style.width = '100vw';
+        cropOverlay.style.height = '100vh';
+        cropOverlay.style.zIndex = '2147483647';
+        cropOverlay.style.cursor = 'crosshair';
+        cropOverlay.style.backgroundColor = 'rgba(0,0,0,0.3)'; // Dim background
+        
+        // Instructions
+        const msg = document.createElement('div');
+        msg.textContent = 'Drag to Crop • Esc to Cancel';
+        msg.style.position = 'absolute';
+        msg.style.top = '20px';
+        msg.style.left = '50%';
+        msg.style.transform = 'translateX(-50%)';
+        msg.style.background = '#0f172a';
+        msg.style.color = 'white';
+        msg.style.padding = '8px 16px';
+        msg.style.borderRadius = '20px';
+        msg.style.fontSize = '14px';
+        msg.style.fontWeight = '500';
+        msg.style.pointerEvents = 'none';
+        msg.style.boxShadow = '0 4px 6px rgba(0,0,0,0.3)';
+        cropOverlay.appendChild(msg);
+
+        // Selection Box
+        const selection = document.createElement('div');
+        selection.style.border = '2px solid #fff';
+        selection.style.boxShadow = '0 0 0 9999px rgba(0,0,0,0.5)'; // Darken outside
+        selection.style.position = 'absolute';
+        selection.style.display = 'none';
+        cropOverlay.appendChild(selection);
+
+        document.body.appendChild(cropOverlay);
+
+        let startX = 0;
+        let startY = 0;
+        let isDragging = false;
+
+        const onMouseDown = (e: MouseEvent) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            
+            selection.style.left = startX + 'px';
+            selection.style.top = startY + 'px';
+            selection.style.width = '0px';
+            selection.style.height = '0px';
+            selection.style.display = 'block';
+        };
+
+        const onMouseMove = (e: MouseEvent) => {
+            if (!isDragging) return;
+            
+            const currentX = e.clientX;
+            const currentY = e.clientY;
+            
+            const width = Math.abs(currentX - startX);
+            const height = Math.abs(currentY - startY);
+            const left = Math.min(currentX, startX);
+            const top = Math.min(currentY, startY);
+
+            selection.style.width = width + 'px';
+            selection.style.height = height + 'px';
+            selection.style.left = left + 'px';
+            selection.style.top = top + 'px';
+        };
+
+        const onMouseUp = async () => {
+            if (!isDragging) return;
+            isDragging = false;
+            
+            // Cleanup events
+            cropOverlay.removeEventListener('mousedown', onMouseDown);
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+            window.removeEventListener('keydown', onKeyDown);
+
+            // Calculate final rect
+            const rect = selection.getBoundingClientRect();
+            
+            // Remove overlay so it's not in the screenshot
+            cropOverlay.remove();
+            
+            // Ignore tiny accidental clicks
+            if (rect.width < 10 || rect.height < 10) {
+                console.log('[Content] Crop too small, cancelling.');
+                resolve(false);
+                return;
+            }
+
+            // Capture logic
+            try {
+                // Wait a tick for overlay to disappear fully
+                await new Promise(r => setTimeout(r, 50));
+                
+                const response = await chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
+                if (response.success && response.dataUrl) {
+                    
+                    // Crop the specific area from the full viewport screenshot
+                    const img = new Image();
+                    img.src = response.dataUrl;
+                    await new Promise(r => img.onload = r);
+
+                    const canvas = document.createElement('canvas');
+                    const dpr = window.devicePixelRatio || 1;
+                    
+                    canvas.width = rect.width * dpr;
+                    canvas.height = rect.height * dpr;
+                    
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(
+                            img,
+                            rect.left * dpr, rect.top * dpr, rect.width * dpr, rect.height * dpr,
+                            0, 0, canvas.width, canvas.height
+                        );
+                        
+                        const croppedDataUri = canvas.toDataURL('image/png');
+                        await copyToClipboardAndToast(croppedDataUri, "Crop copied to clipboard!");
+                        resolve(true);
+                        return;
+                    }
+                }
+            } catch (err) {
+                 console.error('[Content] Crop capture failed:', err);
+                 showError("Failed to process crop.");
+            }
+            resolve(false);
+        };
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                cropOverlay.remove();
+                resolve(false);
+            }
+        };
+
+        cropOverlay.addEventListener('mousedown', onMouseDown);
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+        window.addEventListener('keydown', onKeyDown);
+    });
+};
 
 
 // --- Auto-Paste Logic ---

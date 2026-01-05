@@ -62,6 +62,8 @@ chrome.commands.onCommand.addListener(async (command) => {
     handleCaptureCommand(command, 'CAPTURE_FULL_PAGE_CLIPBOARD');
   } else if (command === 'capture_viewport_clipboard') {
       handleCaptureCommand(command, 'CAPTURE_VIEWPORT_CLIPBOARD');
+  } else if (command === 'capture_crop_clipboard') {
+      handleCaptureCommand(command, 'CAPTURE_CROP_CLIPBOARD');
   } else {
       console.warn('[Background] Unknown command:', command);
   }

@@ -46,6 +46,13 @@
         "mac": "Command+Shift+S"
       },
       "description": "Capture Viewport & Copy"
+    },
+    "capture_crop_clipboard": {
+      "suggested_key": {
+        "default": "Alt+Shift+Q",
+        "mac": "Command+Shift+Q"
+      },
+      "description": "Crop & Capture to Clipboard"
     }
   }
 }
