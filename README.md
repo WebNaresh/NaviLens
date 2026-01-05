@@ -1,33 +1,38 @@
-# NaviLens - AI-Powered Screen Assistant Extension
+# NaviLens - Screen Capture & Crop
 
-NaviLens is a Chrome Extension that integrates Google's Gemini AI to analyze and provide suggestions for your web browsing experience. It allows users to capture screenshots of full pages or specific components and query the AI for design improvements, content updates, and code suggestions.
+NaviLens is a powerful, privacy-focused Chrome Extension for capturing, cropping, and saving screenshots of any web page.
 
 ## Features
 
 -   **📸 Smart Capture**:
-    -   **Full Page Screenshot**: Capture the entire visible area of the current webpage.
-    -   **Component Selection**: Interactively select specific UI elements (cards, headers, sections) to capture.
--   **🤖 Gemini AI Integration**:
-    -   Securely store your Gemini API Key.
-    -   Analyze captured screenshots with context-aware prompts.
-    -   Get actionable suggestions for UI/UX improvements, code refactoring, and content generation.
+    -   **Full Page**: Capture entire scrolling webpages flawlessly.
+    -   **Viewport**: Snap exactly what you see on screen.
+    -   **Interactive Crop**: Use `Alt+Shift+Q` to draw a box and capture any region instantly.
+-   **📋 Clipboard Ready**:
+    -   All captures can be automatically copied to your clipboard for easy pasting into documents, chats, or design tools.
 -   **🎨 Modern UI**:
     -   Clean, professional interface built with React and Tailwind CSS.
-    -   User-friendly "Refine" mode to iterate on AI suggestions.
+    -   Drawing tools to annotate your screenshots before sharing.
 -   **🔒 Privacy Focused**:
-    -   API Keys are stored locally (`chrome.storage.local`).
-    -   Data is sent directly to Google's Gemini API with no intermediate servers.
+    -   All processing happens locally on your device.
+    -   No data is sent to external servers.
+
+## Keyboard Shortcuts
+
+-   `Alt+Shift+D` : Capture Full Page
+-   `Alt+Shift+S` : Capture Visible Area
+-   `Alt+Shift+Q` : Interactive Crop & Copy
+*(Use `Command+Shift` on Mac)*
 
 ## Tech Stack
 
 -   **Frontend**: React 18, TypeScript, Vite
 -   **Styling**: Tailwind CSS
 -   **Extension Platform**: Manifest V3
--   **AI**: Google Gemini API (Multimodal)
 
 ## Installation
 
 1.  Clone the repository.
-2.  Run `npm install` to install dependencies.
-3.  Run `npm run build` to build the extension.
+2.  Run `pnpm install` to install dependencies.
+3.  Run `pnpm build` to build the extension.
 4.  Load the `dist` directory as an unpacked extension in Chrome Developer Mode.
