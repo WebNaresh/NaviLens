@@ -173,7 +173,12 @@ const performScrollCapture = async () => {
                 if (rect.width === 0 || rect.height === 0) continue;
 
                 const style = window.getComputedStyle(el);
-                if (['auto', 'scroll'].includes(style.overflowY)) {
+                // Enhanced check: Include 'hidden' if it has scrollable content (e.g. custom scrollbars like PerfectScrollbar)
+                // But ensure it's not just a small hidden element.
+                const isScrollableStyle = ['auto', 'scroll'].includes(style.overflowY) || 
+                                          (style.overflowY === 'hidden' && el.scrollHeight > el.clientHeight);
+
+                if (isScrollableStyle) {
                      const area = rect.width * rect.height;
                      if (area > maxArea && area > 50000) { // arbitrary min size
                          maxArea = area;
