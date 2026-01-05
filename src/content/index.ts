@@ -128,9 +128,94 @@ const showError = (error: string, imageUri?: string) => {
   panel.style.display = 'block';
 };
 
+// --- Clipboard Helper ---
+
+const copyToClipboardAndToast = async (dataUri: string, toastMessage: string = "Image copied to clipboard!") => {
+    try {
+        const blob = dataURItoBlob(dataUri);
+        const item = new ClipboardItem({ [blob.type]: blob });
+        await navigator.clipboard.write([item]);
+        
+        // Show Toast
+        const toast = document.createElement('div');
+        toast.textContent = toastMessage;
+        toast.style.position = 'fixed';
+        toast.style.bottom = '20px';
+        toast.style.left = '50%';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.backgroundColor = '#10b981'; // Green
+        toast.style.color = '#fff';
+        toast.style.padding = '10px 20px';
+        toast.style.borderRadius = '8px';
+        toast.style.zIndex = '2147483647';
+        toast.style.fontFamily = 'Inter, system-ui, sans-serif';
+        toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+        toast.style.fontWeight = '500';
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        
+        document.body.appendChild(toast);
+        
+        // Fade in
+        requestAnimationFrame(() => toast.style.opacity = '1');
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+
+    } catch (e) {
+        console.error('[Content] Clipboard write failed:', e);
+        showError(`Failed to copy to clipboard. ${e instanceof Error ? e.message : String(e)}`);
+    }
+};
+
+const performViewportCapture = async () => {
+    try {
+        // Flash effect
+        const flash = document.createElement('div');
+        flash.style.position = 'fixed';
+        flash.style.top = '0';
+        flash.style.left = '0';
+        flash.style.width = '100vw';
+        flash.style.height = '100vh';
+        flash.style.backgroundColor = '#fff';
+        flash.style.zIndex = '2147483647';
+        flash.style.opacity = '0.5';
+        flash.style.pointerEvents = 'none';
+        flash.style.transition = 'opacity 0.2s ease-out';
+        document.body.appendChild(flash);
+        
+        requestAnimationFrame(() => {
+            flash.style.opacity = '0';
+            setTimeout(() => flash.remove(), 200);
+        });
+
+        // Hide UI briefly
+        const panel = document.getElementById('navilens-panel');
+        if (panel) panel.style.opacity = '0';
+
+        // Wait a tick for UI to hide
+        await new Promise(r => setTimeout(r, 50));
+
+        const response = await chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
+        
+        if (panel) panel.style.opacity = '1';
+
+        if (response.success && response.dataUrl) {
+            await copyToClipboardAndToast(response.dataUrl, "Viewport copied to clipboard!");
+        } else {
+             throw new Error(response.error || "Unknown capture error");
+        }
+    } catch (e) {
+        console.error('[Content] Viewport capture failed:', e);
+        showError(`Failed to capture viewport. ${e instanceof Error ? e.message : String(e)}`);
+    }
+};
+
 // --- Scroll Capture Helper ---
 
-const performScrollCapture = async () => {
+const performScrollCapture = async (options: { copyToClipboard: boolean } = { copyToClipboard: false }) => {
     try {
         const tempCanvas = document.createElement('canvas');
         const context = tempCanvas.getContext('2d');
@@ -442,25 +527,32 @@ const performScrollCapture = async () => {
 
         const finalImageUri = finalCanvas.toDataURL('image/png'); // Use the cropped one
         
-        // Save to storage
-        await chrome.storage.local.set({ 
-            'navilens_current_capture': {
-                imageUri: finalImageUri,
-                timestamp: Date.now()
-            }
-        });
-
-        showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
-
-        // Open Result Tab
-        await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
-        
-        
-        // Close panel after short delay
-        setTimeout(() => {
+        if (options.copyToClipboard) {
+            await copyToClipboardAndToast(finalImageUri, "Full Page Copied!");
+            
+            // Close panel immediately
             const panel = document.getElementById('navilens-panel');
             if (panel) panel.style.display = 'none';
-        }, 1000);
+        } else {
+            // Save to storage
+            await chrome.storage.local.set({ 
+                'navilens_current_capture': {
+                    imageUri: finalImageUri,
+                    timestamp: Date.now()
+                }
+            });
+
+            showLoading("Done! Opening result...<br><span style='font-size: 12px; color: #94a3b8;'>Redirecting to analysis page</span>");
+
+            // Open Result Tab
+            await chrome.runtime.sendMessage({ type: 'OPEN_RESULT_TAB' });
+            
+            // Close panel after short delay
+            setTimeout(() => {
+                const panel = document.getElementById('navilens-panel');
+                if (panel) panel.style.display = 'none';
+            }, 1000);
+        }
 
     } catch (error) {
         console.error('[Content] Scroll capture failed:', error);
@@ -476,7 +568,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     console.log('[Content] Starting Scroll & Stitch capture (Internal)...');
     showLoading("Initializing scroll capture...<br><span style='font-size: 12px; color: #94a3b8;'>Please do not interact with the page.</span>");
 
-    setTimeout(() => performScrollCapture(), 100);
+    setTimeout(() => performScrollCapture({ copyToClipboard: false }), 100);
+    sendResponse({ status: 'capturing' });
+  }
+
+  if (message.type === 'CAPTURE_FULL_PAGE_CLIPBOARD') {
+    console.log('[Content] Starting Scroll & Stitch capture (Clipboard)...');
+    showLoading("Initializing scroll capture...<br><span style='font-size: 12px; color: #94a3b8;'>Image will be copied to your clipboard.</span>");
+
+    setTimeout(() => performScrollCapture({ copyToClipboard: true }), 100);
+    sendResponse({ status: 'capturing' });
+  }
+
+  if (message.type === 'CAPTURE_VIEWPORT_CLIPBOARD') {
+    console.log('[Content] Starting Viewport capture (Clipboard)...');
+    // No loading UI for viewport (instant flash)
+    setTimeout(() => performViewportCapture(), 50);
     sendResponse({ status: 'capturing' });
   }
 });

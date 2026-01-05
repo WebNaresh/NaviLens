@@ -55,18 +55,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'capture_full_page') {
-    console.log('[Background] capture_full_page command triggered');
+    handleCaptureCommand(command, 'CAPTURE_FULL_PAGE');
+  } else if (command === 'capture_full_page_clipboard') {
+    handleCaptureCommand(command, 'CAPTURE_FULL_PAGE_CLIPBOARD');
+  } else if (command === 'capture_viewport_clipboard') {
+      handleCaptureCommand(command, 'CAPTURE_VIEWPORT_CLIPBOARD');
+  }
+});
+
+async function handleCaptureCommand(commandName: string, messageType: string) {
+    console.log(`[Background] ${commandName} command triggered`);
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id) {
       try {
-        console.log('[Background] Sending CAPTURE_FULL_PAGE to tab', tab.id);
-        await chrome.tabs.sendMessage(tab.id, { type: 'CAPTURE_FULL_PAGE' });
+        console.log(`[Background] Sending ${messageType} to tab`, tab.id);
+        await chrome.tabs.sendMessage(tab.id, { type: messageType });
       } catch (e) {
         console.error('[Background] Failed to send message:', e);
       }
     } else {
         console.log('[Background] No active tab found for capture command');
     }
-  }
-});
+}
 

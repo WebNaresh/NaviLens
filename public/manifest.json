@@ -32,6 +32,20 @@
         "mac": "Command+Shift+L"
       },
       "description": "Capture Full Page"
+    },
+    "capture_full_page_clipboard": {
+      "suggested_key": {
+        "default": "Alt+Shift+A",
+        "mac": "Command+Shift+A"
+      },
+      "description": "Capture Full Page & Copy"
+    },
+    "capture_viewport_clipboard": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Capture Viewport & Copy"
     }
   }
 }
