@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:zip": "bun run build && cd dist && zip -r ../extension.zip .",
     "lint": "eslint .",
     "preview": "vite preview"
   },
