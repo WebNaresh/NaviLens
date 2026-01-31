@@ -33,6 +33,6 @@ NaviLens is a powerful, privacy-focused Chrome Extension for capturing, cropping
 ## Installation
 
 1.  Clone the repository.
-2.  Run `pnpm install` to install dependencies.
-3.  Run `pnpm build` to build the extension.
+2.  Run `bun install` to install dependencies.
+3.  Run `bun build` to build the extension.
 4.  Load the `dist` directory as an unpacked extension in Chrome Developer Mode.
