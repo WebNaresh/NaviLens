@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NaviLens - Screen Capture",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Capture full-page screenshots, visible areas, or custom crops and copy them directly to your clipboard.",
   "permissions": [
     "activeTab",
@@ -32,8 +32,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["assets/content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "assets/content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
